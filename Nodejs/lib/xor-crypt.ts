@@ -39,8 +39,8 @@ export function encrypt(text: string, key: string): { encrypted: string | undefi
     if (key.length > text.length) {
         return {encrypted: undefined, err: "Key length more than input length"};
     }
-    if (text.length < 6) {
-        return {encrypted: undefined, err: "Text length less than 6"};
+    if (text.length < 6 || key.length < 6) {
+        return {encrypted: undefined, err: "Text length or Key length less than 6"};
     }
     try {
         let out: string = "";
@@ -78,6 +78,9 @@ export function encrypt(text: string, key: string): { encrypted: string | undefi
 export function decrypt(input: string, key: string): { decrypted: string | undefined, err: string | undefined } {
     if (input == null || key == null) {
         return {decrypted: undefined, err: "Text or Key NULL"};
+    }
+    if (key.length < 6) {
+        return {decrypted: undefined, err: "Key length less than 6"};
     }
     try {
         let out: string = "", rands: string = "", encrypted: string = "";
