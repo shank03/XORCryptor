@@ -1,6 +1,6 @@
 {
   "name": "xor-cryptor",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Randomized XOR Encryption",
   "main": "dist/xor-crypt.js",
   "types": "dist/xor-crypt.d.ts",
@@ -13,7 +13,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/shank03/XORCryptor/tree/main/Nodejs"
+    "url": "https://github.com/shank03/XORCryptor"
   },
   "keywords": [],
   "author": "shank03",
