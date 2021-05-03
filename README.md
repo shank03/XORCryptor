@@ -1,2 +1,0 @@
-# XORCryptor
-Randomized XOR Encryption
