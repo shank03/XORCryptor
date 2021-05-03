@@ -7,4 +7,5 @@ Quick randomized XOR encryption
 - Node.js: [npm](https://www.npmjs.com/package/xor-cryptor)
   | [source](https://github.com/shank03/XORCryptor/tree/main/Nodejs)
 
-- Java/Kotlin: [source](https://github.com/shank03/XORCryptor/tree/main/JVM) 
+- Java / Kotlin: [jar](https://github.com/shank03/XORCryptor/releases)
+  | [source](https://github.com/shank03/XORCryptor/tree/main/JVM) 
