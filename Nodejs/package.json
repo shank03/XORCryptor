@@ -1,6 +1,6 @@
 {
   "name": "xor-cryptor",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Randomized XOR Encryption",
   "main": "dist/xor-crypt.js",
   "types": "dist/xor-crypt.d.ts",
