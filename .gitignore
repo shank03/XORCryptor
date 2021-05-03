@@ -3,9 +3,11 @@ Nodejs/node_modules/
 Nodejs/npm-debug.log*
 Nodejs/yarn-debug.log*
 Nodejs/yarn-error.log*
+out/
 
 # Editor directories and files
 .idea/
+*.iml
 *.suo
 *.ntvs*
 *.njsproj
