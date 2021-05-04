@@ -9,6 +9,8 @@ JVM module for `Java / Kotlin`
 
 ### Usage
 
+#### Java:
+
 ```java
 import com.beesechurger.shank03.XORCryptor;
 
@@ -37,6 +39,36 @@ class Sample {
                 System.out.println("Decrypted: " + data);
             }
         });
+    }
+}
+```
+
+-----------------------------------------------------------------
+
+#### Kotlin
+
+```kotlin
+import com.beesechurger.shank03.XORCryptor
+
+fun main() {
+    val text = ""
+    val key = ""
+
+    XORCryptor.encrypt(text, key) { data, err ->
+        if (err != null) {
+            println("Error: $err")
+        } else {
+            println("Encrypted: $data")
+        }
+    }
+
+    val encrypted = ""
+    XORCryptor.decrypt(encrypted, key) { data, err ->
+        if (err != null) {
+            println("Error: $err")
+        } else {
+            println("Decrypted: $data")
+        }
     }
 }
 ```
