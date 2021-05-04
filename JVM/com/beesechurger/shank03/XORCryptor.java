@@ -3,7 +3,7 @@ package com.beesechurger.shank03;
 import java.util.Random;
 
 /**
- * Cryptor Class
+ * XORCryptor Class
  * <p>
  * Encrypts input text using XOR operation with individual characters
  * from input, key and randomized generated character.
@@ -11,10 +11,10 @@ import java.util.Random;
  * @author Shashank Verma (shank03) <shashank.verma2002@gmail.com>
  * date: 02-May-2021
  */
-public class Cryptor {
+public class XORCryptor {
 
     // Private constructor
-    private Cryptor() {
+    private XORCryptor() {
     }
 
     /**
@@ -42,7 +42,7 @@ public class Cryptor {
      * <p>
      * Implementation:
      * <pre> {@code
-     * Cryptor.encrypt(text, key, (data, err) -> {
+     * XORCryptor.encrypt(text, key, (data, err) -> {
      *     if (err != null) {
      *         // handle error
      *     } else {
@@ -92,7 +92,7 @@ public class Cryptor {
      * <p>
      * Implementation:
      * <pre> {@code
-     * Cryptor.decrypt(text, key, (data, err) -> {
+     * XORCryptor.decrypt(text, key, (data, err) -> {
      *     if (err != null) {
      *         // handle error
      *     } else {

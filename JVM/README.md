@@ -10,14 +10,14 @@ JVM module for `Java / Kotlin`
 ### Usage
 
 ```java
-import com.beesechurger.shank03.Cryptor;
+import com.beesechurger.shank03.XORCryptor;
 
 class Sample {
     public static void main(String[] args) {
         String text;    // Take input
         String key;     // Take input
 
-        Cryptor.encrypt(text, key, (data, err) -> {
+        XORCryptor.encrypt(text, key, (data, err) -> {
             if (err != null) {
                 // Handle error
                 System.out.println("Error: " + err);
@@ -28,7 +28,7 @@ class Sample {
         });
 
         String encrypted;   // Some encrypted text
-        Cryptor.decrypt(encrypted, key, (data, err) -> {
+        XORCryptor.decrypt(encrypted, key, (data, err) -> {
             if (err != null) {
                 // Handle error
                 System.out.println("Error: " + err);
