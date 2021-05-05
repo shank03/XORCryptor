@@ -1,6 +1,6 @@
 # XORCrypt
 
-JVM module for `Java / Kotlin`
+Module for `Java / Kotlin`
 
 ### Installation
 

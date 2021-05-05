@@ -8,4 +8,4 @@ Quick randomized XOR encryption
   | [source](https://github.com/shank03/XORCryptor/tree/main/Nodejs)
 
 - Java / Kotlin: [jar](https://github.com/shank03/XORCryptor/releases)
-  | [source](https://github.com/shank03/XORCryptor/tree/main/JVM) 
+  | [source](https://github.com/shank03/XORCryptor/tree/main/Java) 
