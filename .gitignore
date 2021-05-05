@@ -13,3 +13,4 @@ out/
 *.njsproj
 *.sln
 Nodejs/package-lock.json
+C++/main.cpp
