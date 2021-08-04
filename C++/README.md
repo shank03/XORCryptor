@@ -2,8 +2,6 @@
 
 For C++
 
-_Limitations : Can't handle unicode_
-
 ### Usage
 
 ```c++
