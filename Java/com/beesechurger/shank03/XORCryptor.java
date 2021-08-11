@@ -31,8 +31,8 @@ public class XORCryptor {
     }
 
     /**
-     * Since {@link #encrypt(String, String, ProcessListener)} and {@link #decrypt(String, String, ProcessListener)}
-     * uses separate thread to process, this is an interface listener to handle result through {@link #onResult(String, String)}
+     * Since {@link #encrypt(byte[], byte[], ProcessListener)} and {@link #decrypt(byte[], byte[], ProcessListener)}
+     * uses separate thread to process, this is an interface listener to handle result through {@link #onResult(byte[], String)}
      */
     public interface ProcessListener {
         /**
@@ -41,14 +41,21 @@ public class XORCryptor {
          * @param err  Returned error message if caused any,
          *             at this point @param `data` will be null
          */
-        void onResult(String data, String err);
+        void onResult(byte[] data, String err);
     }
 
     /**
-     * Array of alphabets to randomly generate from {@link #getRandChar()}
+     * Utility function to convert the byte array to string
+     *
+     * @return String
      */
-    private static final char[] ALPHABETS = {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l',
-            'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'};
+    public static synchronized String getString(byte[] data) {
+        StringBuilder out = new StringBuilder();
+        for (byte b : data) {
+            out.append((char) b);
+        }
+        return out.toString();
+    }
 
     /**
      * Function that encrypts the provided text
@@ -68,32 +75,35 @@ public class XORCryptor {
      * @param key      The unique passcode for encrypting/decrypting text
      * @param listener Interface to return data when processed
      */
-    public static synchronized void encrypt(final String text, final String key, final ProcessListener listener) {
+    public static synchronized void encrypt(final byte[] text, final byte[] key, final ProcessListener listener) {
         if (text == null || key == null) {
             listener.onResult(null, "Text or Key NULL");
             return;
         }
-        if (key.length() > text.length()) {
+        if (key.length > text.length) {
             listener.onResult(null, "Key length more than input length");
             return;
         }
-        if (text.length() < 6 || key.length() < 6) {
+        if (text.length < 6 || key.length < 6) {
             listener.onResult(null, "Text length less than 6");
             return;
         }
         try {
-            final StringBuilder out = new StringBuilder();
+            final byte[] out = new byte[text.length * 2];
             new Thread(() -> {
-                int k = 0;
-                for (int i = 0; i < text.length(); i++) {
-                    if (k == key.length()) {
+                int k = 0, o_index = 0;
+                for (byte b : text) {
+                    if (k == key.length) {
                         k = 0;
                     }
-                    int c = getRandChar();
-                    out.append((char) ((int) text.charAt(i) ^ (int) key.charAt(k) ^ c)).append((char) c);
+                    int c = new Random().nextInt(128);
+                    out[o_index] = (byte) (b ^ key[k] ^ c);
+                    o_index++;
+                    out[o_index] = (byte) c;
+                    o_index++;
                     k++;
                 }
-                listener.onResult(out.toString(), null);
+                listener.onResult(out, null);
             }, "Encryption Thread").start();
         } catch (Exception e) {
             listener.onResult(null, e.getLocalizedMessage());
@@ -118,53 +128,46 @@ public class XORCryptor {
      * @param key      The unique passcode for encrypting/decrypting text
      * @param listener Interface to return data when processed
      */
-    public static synchronized void decrypt(final String input, final String key, final ProcessListener listener) {
+    public static synchronized void decrypt(final byte[] input, final byte[] key, final ProcessListener listener) {
         if (input == null || key == null) {
             listener.onResult(null, "Text or Key NULL");
             return;
         }
-        if (key.length() < 6) {
+        if (key.length < 6) {
             listener.onResult(null, "Key length less than 6");
             return;
         }
         try {
-            final StringBuilder rands = new StringBuilder(), encryptedText = new StringBuilder(), out = new StringBuilder();
+            final byte[] rands = new byte[input.length / 2], encryptedText = new byte[input.length / 2], out = new byte[input.length / 2];
             new Thread(() -> {
-                for (int i = 0; i < input.length(); i++) {
+                int r_index = 0, e_index = 0, o_index = 0;
+                for (int i = 0; i < input.length; i++) {
                     if (i % 2 == 0) {
-                        rands.append(input.charAt(i));
+                        rands[r_index] = input[i];
+                        r_index++;
                     } else {
-                        encryptedText.append(input.charAt(i));
+                        encryptedText[e_index] = input[i];
+                        e_index++;
                     }
                 }
 
                 int k = 0, c = 0;
-                for (int i = 0; i < encryptedText.length(); i++) {
-                    if (k == key.length()) {
+                for (byte aByte : encryptedText) {
+                    if (k == key.length) {
                         k = 0;
                     }
-                    if (c == rands.length()) {
+                    if (c == rands.length) {
                         c = 0;
                     }
-                    out.append((char) ((int) encryptedText.charAt(i) ^ (int) key.charAt(k) ^ (int) rands.charAt(c)));
+                    out[o_index] = (byte) (aByte ^ key[k] ^ rands[c]);
+                    o_index++;
                     k++;
                     c++;
                 }
-                listener.onResult(out.toString(), null);
+                listener.onResult(out, null);
             }, "Decryption Thread").start();
         } catch (Exception e) {
             listener.onResult(null, e.getLocalizedMessage());
         }
-    }
-
-    /**
-     * Function to generate random character from {@link #ALPHABETS}
-     *
-     * @return ascii of random character which is randomly capitalized
-     */
-    private static synchronized int getRandChar() {
-        char chr = ALPHABETS[new Random().nextInt(ALPHABETS.length)];
-        int cap = new Random().nextInt(2);
-        return cap == 1 ? chr - 32 : chr;
     }
 }

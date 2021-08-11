@@ -19,24 +19,24 @@ class Sample {
         String text;    // Take input
         String key;     // Take input
 
-        XORCryptor.encrypt(text, key, (data, err) -> {
+        XORCryptor.encrypt(text.getBytes(), key.getBytes(), (data, err) -> {
             if (err != null) {
                 // Handle error
                 System.out.println("Error: " + err);
             } else {
                 // Handle encrypted text
-                System.out.println("Encrypted: " + data);
+                System.out.println("Encrypted: " + XORCryptor.getString(data));
             }
         });
 
         String encrypted;   // Some encrypted text
-        XORCryptor.decrypt(encrypted, key, (data, err) -> {
+        XORCryptor.decrypt(encrypted.getBytes(), key.getBytes(), (data, err) -> {
             if (err != null) {
                 // Handle error
                 System.out.println("Error: " + err);
             } else {
                 // Handle decrypted text
-                System.out.println("Decrypted: " + data);
+                System.out.println("Decrypted: " + XORCryptor.getString(data));
             }
         });
     }
@@ -54,20 +54,20 @@ fun main() {
     val text = ""
     val key = ""
 
-    XORCryptor.encrypt(text, key) { data, err ->
+    XORCryptor.encrypt(text.toByte(), key.toByte()) { data, err ->
         if (err != null) {
             println("Error: $err")
         } else {
-            println("Encrypted: $data")
+            println("Encrypted: ${XORCryptor.getString(data)}")
         }
     }
 
     val encrypted = ""
-    XORCryptor.decrypt(encrypted, key) { data, err ->
+    XORCryptor.decrypt(encrypted.toByte(), key.toByte()) { data, err ->
         if (err != null) {
             println("Error: $err")
         } else {
-            println("Decrypted: $data")
+            println("Decrypted: ${XORCryptor.getString(data)}")
         }
     }
 }
