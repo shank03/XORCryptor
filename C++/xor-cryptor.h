@@ -26,6 +26,13 @@ namespace xorCrypt {
 
 #define NULL_STR "!#-"
 
+    typedef unsigned char byte;
+
+    typedef struct cipher {
+        std::vector<byte> data;
+        std::string err;
+    } XORCipherData;
+
     /**
      * Function that encrypts the provided text
      *
@@ -34,7 +41,7 @@ namespace xorCrypt {
      * @param output   The pointer of array (whose length should be 2). The data is passed
      *                 through this array where [0] is encrypted data and [1] is error if any occurred
      */
-    void encrypt(const std::string &text, const std::string &key, std::string *output);
+    void encrypt(const std::vector<byte> &text, const std::vector<byte> &key, XORCipherData *output);
 
     /**
      * Function that decrypts the encrypted text
@@ -44,5 +51,7 @@ namespace xorCrypt {
      * @param output   The pointer of array (whose length should be 2). The data is passed
      *                 through this array where [0] is decrypted data and [1] is error if any occurred
      */
-    void decrypt(const std::string &input, const std::string &key, std::string *output);
+    void decrypt(const std::vector<byte> &input, const std::vector<byte> &key, XORCipherData *output);
+
+    std::string getString(const std::vector<byte> &data);
 }

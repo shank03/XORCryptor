@@ -13,6 +13,7 @@
  */
 
 #include <sstream>
+#include <vector>
 #include "effolkronium/random.hpp" // Credits and Link: https://github.com/effolkronium/random
 #include "xor-cryptor.h"
 
@@ -22,74 +23,73 @@
  * date: 02-May-2021
  */
 
-const char ALPHABETS[] = {'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
-                          'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'};
-
-int getRandChar() {
-    char c = ALPHABETS[effolkronium::random_static::get(0, 25)];
-    int cap = effolkronium::random_static::get(0, 1);
-    return cap == 1 ? c - 32 : c;
-}
-
-void xorCrypt::encrypt(const std::string &text, const std::string &key, std::string *output) {
-    output[0] = NULL_STR, output[1] = NULL_STR;
+void xorCrypt::encrypt(const std::vector<byte> &text, const std::vector<byte> &key, XORCipherData *output) {
+    output->err = NULL_STR;
     if (text.empty() || key.empty()) {
-        output[1] = "Text or key NULL";
+        output->err = "Text or key NULL";
         return;
     }
-    if (key.length() > text.length()) {
-        output[1] = "Key length more than input length";
+    if (key.size() > text.size()) {
+        output->err = "Key length more than input length";
         return;
     }
-    if (text.length() < 6 || key.length() < 6) {
-        output[1] = "Text length or Key length less than 6";
+    if (text.size() < 6 || key.size() < 6) {
+        output->err = "Text length or Key length less than 6";
         return;
     }
     try {
-        std::stringstream enc;
+        std::vector<byte> enc;
         int k = 0;
-        for (char i : text) {
-            if (k == key.length()) k = 0;
-            int c = getRandChar();
-            enc << (char) ((int) i ^ (int) key[k] ^ c) << (char) c;
+        for (byte i : text) {
+            if (k == key.size()) k = 0;
+            int c = effolkronium::random_static::get(0, 127);
+            enc.push_back((byte) (i ^ key[k] ^ c));
+            enc.push_back((byte) c);
             k++;
         }
-        output[0] = enc.str();
+        output->data = enc;
     } catch (std::exception &e) {
-        output[1] = e.what();
+        output->err = e.what();
     }
 }
 
-void xorCrypt::decrypt(const std::string &input, const std::string &key, std::string *output) {
-    output[0] = NULL_STR, output[1] = NULL_STR;
+void xorCrypt::decrypt(const std::vector<byte> &input, const std::vector<byte> &key, XORCipherData *output) {
+    output->err = NULL_STR;
     if (input.empty() || key.empty()) {
-        output[1] = "Text or key NULL";
+        output->err = "Text or key NULL";
         return;
     }
-    if (key.length() < 6) {
-        output[1] = "Key length less than 6";
+    if (key.size() < 6) {
+        output->err = "Key length less than 6";
         return;
     }
     try {
-        std::stringstream rs, enc, decrypt;
-        for (int i = 0; i < input.length(); i++) {
+        std::vector<byte> rands, encrypted, decrypt;
+        for (int i = 0; i < input.size(); i++) {
             if (i % 2 == 0) {
-                rs << input[i];
+                rands.push_back(input[i]);
             } else {
-                enc << input[i];
+                encrypted.push_back(input[i]);
             }
         }
 
-        std::string rands = rs.str(), encrypted = enc.str();
         int k = 0, c = 0;
-        for (char i : encrypted) {
-            if (k == key.length()) k = 0;
-            if (c == rands.length()) c = 0;
-            decrypt << (char) ((int) i ^ (int) key[k] ^ (int) rands[c]);
+        for (byte i : encrypted) {
+            if (k == key.size()) k = 0;
+            if (c == rands.size()) c = 0;
+            decrypt.push_back((byte) (i ^ key[k] ^ rands[c]));
             k++, c++;
         }
-        output[0] = decrypt.str();
+        output->data = decrypt;
     } catch (std::exception &e) {
-        output[1] = e.what();
+        output->err = e.what();
     }
+}
+
+std::string xorCrypt::getString(const std::vector<byte> &data) {
+    std::stringstream out;
+    for (byte b : data) {
+        out << (char) b;
+    }
+    return out.str();
 }

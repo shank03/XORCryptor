@@ -12,27 +12,29 @@ int main() {
     std::string text, key;  // Take input
 
     // Encrypt
-    std::string encrypted[2];
-    xorCrypt::encrypt(text, key, encrypted);
+    std::vector<xorCrypt::byte> input(text.begin(), text.end()), cipherKey(key.begin(), key.end());
+    xorCrypt::XORCipherData output;
+    xorCrypt::encrypt(input, cipherKey, &output);
 
-    if (encrypted[1] == NULL_STR) {
+    if (output.err == NULL_STR) {
         // Handle encrypted text
-        std::cout << encrypted[0] << "\n";
+        std::cout << xorCrypt::getString(output.data) << "\n";
     } else {
         // Handle error
-        std::cout << "Error: " << encrypted[1] << "\n";
+        std::cout << "Error: " << output.err << "\n";
     }
 
     // Decrypt
-    std::string someRandomEncryptedText, decrypted[2];
-    xorCrypt::decrypt(someRandomEncryptedText, key, decrypted);
+    std::vector<xorCrypt::byte> encryptedText;    // Take input
+    xorCrypt::XORCipherData output_dec;
+    xorCrypt::decrypt(encryptedText, key, &output_dec);
 
-    if (decrypted[1] == NULL_STR) {
+    if (output_dec.err == NULL_STR) {
         // Handle decrypted text
-        std::cout << decrypted[0] << "\n";
+        std::cout << xorCrypt::getString(output_dec.data) << "\n";
     } else {
         // Handle error
-        std::cout << "Error: " << decrypted[1] << "\n";
+        std::cout << "Error: " << output_dec.err << "\n";
     }
     return 0;
 }
