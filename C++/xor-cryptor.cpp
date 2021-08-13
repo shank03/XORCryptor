@@ -23,7 +23,10 @@
  * date: 02-May-2021
  */
 
-void xorCrypt::encrypt(const std::vector<byte> &text, const std::vector<byte> &key, XORCipherData *output) {
+const int RANDOM_FLAG_SIZE = 10;
+xorCrypt::byte RANDOM_FLAG[RANDOM_FLAG_SIZE] = {'R', 'A', 'N', 'D', 'O', 'M', 'I', 'Z', 'E', 'D'};
+
+void xorCrypt::encrypt(const std::vector<byte> &text, const std::vector<byte> &key, bool randomized, XORCipherData *output) {
     output->err = NULL_STR;
     if (text.empty() || key.empty()) {
         output->err = "Text or key NULL";
@@ -39,18 +42,31 @@ void xorCrypt::encrypt(const std::vector<byte> &text, const std::vector<byte> &k
     }
     try {
         std::vector<byte> enc;
+        if (randomized) {
+            for (byte b : RANDOM_FLAG) enc.push_back(b);
+        }
         int k = 0;
         for (byte i : text) {
             if (k == key.size()) k = 0;
             int c = effolkronium::random_static::get(0, 127);
-            enc.push_back((byte) (i ^ key[k] ^ c));
-            enc.push_back((byte) c);
+            enc.push_back(randomized ? (byte) (i ^ key[k] ^ c) : (byte) (i ^ key[k]));
+            if (randomized) enc.push_back((byte) c);
             k++;
         }
         output->data = enc;
     } catch (std::exception &e) {
         output->err = e.what();
     }
+}
+
+void handleRandomized(std::vector<xorCrypt::byte> *data) {
+    if (data->size() < RANDOM_FLAG_SIZE) return;
+
+    int flagCount = 0;
+    for (int i = 0; i < RANDOM_FLAG_SIZE; i++) {
+        if ((*data)[i] == RANDOM_FLAG[i]) flagCount++;
+    }
+    if (flagCount == RANDOM_FLAG_SIZE) data->erase(data->begin(), data->begin() + RANDOM_FLAG_SIZE);
 }
 
 void xorCrypt::decrypt(const std::vector<byte> &input, const std::vector<byte> &key, XORCipherData *output) {
@@ -64,20 +80,28 @@ void xorCrypt::decrypt(const std::vector<byte> &input, const std::vector<byte> &
         return;
     }
     try {
+        std::vector<byte> fInput(input.begin(), input.end());
+        handleRandomized(&fInput);
+        bool randomized = fInput.size() < input.size();
+
         std::vector<byte> rands, encrypted, decrypt;
-        for (int i = 0; i < input.size(); i++) {
-            if (i % 2 == 0) {
-                rands.push_back(input[i]);
-            } else {
-                encrypted.push_back(input[i]);
+        if (randomized) {
+            for (int i = 0; i < fInput.size(); i++) {
+                if (i % 2 == 0) {
+                    rands.push_back(fInput[i]);
+                } else {
+                    encrypted.push_back(fInput[i]);
+                }
             }
+        } else {
+            encrypted = fInput;
         }
 
         int k = 0, c = 0;
         for (byte i : encrypted) {
             if (k == key.size()) k = 0;
             if (c == rands.size()) c = 0;
-            decrypt.push_back((byte) (i ^ key[k] ^ rands[c]));
+            decrypt.push_back(randomized ? (byte) (i ^ key[k] ^ rands[c]) : (byte) (i ^ key[k]));
             k++, c++;
         }
         output->data = decrypt;

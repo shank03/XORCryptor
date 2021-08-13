@@ -14,7 +14,7 @@ int main() {
     // Encrypt
     std::vector<xorCrypt::byte> input(text.begin(), text.end()), cipherKey(key.begin(), key.end());
     xorCrypt::XORCipherData output;
-    xorCrypt::encrypt(input, cipherKey, &output);
+    xorCrypt::encrypt(input, cipherKey, true /* or false */, &output);
 
     if (output.err == NULL_STR) {
         // Handle encrypted text

@@ -36,12 +36,15 @@ namespace xorCrypt {
     /**
      * Function that encrypts the provided text
      *
-     * @param text     The input to be encrypted
-     * @param key      The unique passcode for encrypting/decrypting text
-     * @param output   The pointer of array (whose length should be 2). The data is passed
-     *                 through this array where [0] is encrypted data and [1] is error if any occurred
+     * @param text       The input to be encrypted
+     * @param key        The unique passcode for encrypting/decrypting text
+     * @param randomized Whether to randomize encryption
+     * @param output     The pointer of array (whose length should be 2). The data is passed
+     *                   through this array where [0] is encrypted data and [1] is error if any occurred
+     *
+     * @note Enabling randomization will return you double the size of original data
      */
-    void encrypt(const std::vector<byte> &text, const std::vector<byte> &key, XORCipherData *output);
+    void encrypt(const std::vector<byte> &text, const std::vector<byte> &key, bool randomized, XORCipherData *output);
 
     /**
      * Function that decrypts the encrypted text
