@@ -19,7 +19,7 @@ class Sample {
         String text;    // Take input
         String key;     // Take input
 
-        XORCryptor.encrypt(text.getBytes(), key.getBytes(), (data, err) -> {
+        XORCryptor.encrypt(text.getBytes(), key.getBytes(), true /* or false */, (data, err) -> {
             if (err != null) {
                 // Handle error
                 System.out.println("Error: " + err);

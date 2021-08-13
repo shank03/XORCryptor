@@ -14,6 +14,7 @@
 
 package com.beesechurger.shank03;
 
+import java.util.Arrays;
 import java.util.Random;
 
 /**
@@ -31,7 +32,7 @@ public class XORCryptor {
     }
 
     /**
-     * Since {@link #encrypt(byte[], byte[], ProcessListener)} and {@link #decrypt(byte[], byte[], ProcessListener)}
+     * Since {@link #encrypt(byte[], byte[], boolean, ProcessListener)} and {@link #decrypt(byte[], byte[], ProcessListener)}
      * uses separate thread to process, this is an interface listener to handle result through {@link #onResult(byte[], String)}
      */
     public interface ProcessListener {
@@ -43,6 +44,8 @@ public class XORCryptor {
          */
         void onResult(byte[] data, String err);
     }
+
+    private static final byte[] RANDOM_FLAG = "RANDOMIZED".getBytes();
 
     /**
      * Utility function to convert the byte array to string
@@ -71,11 +74,13 @@ public class XORCryptor {
      * });
      * }</pre>
      *
-     * @param text     The input to be encrypted
-     * @param key      The unique passcode for encrypting/decrypting text
-     * @param listener Interface to return data when processed
+     * @param text       The input to be encrypted
+     * @param key        The unique passcode for encrypting/decrypting text
+     * @param listener   Interface to return data when processed
+     * @param randomized Boolean whether to randomize the encryption
+     * @apiNote : Randomization returns double the size of initial data
      */
-    public static synchronized void encrypt(final byte[] text, final byte[] key, final ProcessListener listener) {
+    public static synchronized void encrypt(final byte[] text, final byte[] key, final boolean randomized, final ProcessListener listener) {
         if (text == null || key == null) {
             listener.onResult(null, "Text or Key NULL");
             return;
@@ -89,18 +94,26 @@ public class XORCryptor {
             return;
         }
         try {
-            final byte[] out = new byte[text.length * 2];
+            final byte[] out = new byte[randomized ? (text.length * 2) + RANDOM_FLAG.length : text.length];
             new Thread(() -> {
                 int k = 0, o_index = 0;
+                if (randomized) {
+                    for (int i = 0; i < RANDOM_FLAG.length; i++) {
+                        out[i] = RANDOM_FLAG[i];
+                        o_index++;
+                    }
+                }
                 for (byte b : text) {
                     if (k == key.length) {
                         k = 0;
                     }
                     int c = new Random().nextInt(128);
-                    out[o_index] = (byte) (b ^ key[k] ^ c);
+                    out[o_index] = randomized ? (byte) (b ^ key[k] ^ c) : (byte) (b ^ key[k]);
                     o_index++;
-                    out[o_index] = (byte) c;
-                    o_index++;
+                    if (randomized) {
+                        out[o_index] = (byte) c;
+                        o_index++;
+                    }
                     k++;
                 }
                 listener.onResult(out, null);
@@ -138,20 +151,28 @@ public class XORCryptor {
             return;
         }
         try {
-            final byte[] rands = new byte[input.length / 2], encryptedText = new byte[input.length / 2], out = new byte[input.length / 2];
+            byte[] fInput = handleRandomized(input);
+            boolean randomized = fInput.length < input.length;
+            int arrayLen = randomized ? fInput.length / 2 : fInput.length;
+            final byte[] rands = new byte[fInput.length / 2], encryptedText = new byte[arrayLen], out = new byte[arrayLen];
+
             new Thread(() -> {
-                int r_index = 0, e_index = 0, o_index = 0;
-                for (int i = 0; i < input.length; i++) {
-                    if (i % 2 == 0) {
-                        rands[r_index] = input[i];
-                        r_index++;
-                    } else {
-                        encryptedText[e_index] = input[i];
-                        e_index++;
+                if (randomized) {
+                    int r_index = 0, e_index = 0;
+                    for (int i = 0; i < fInput.length; i++) {
+                        if (i % 2 == 0) {
+                            rands[r_index] = fInput[i];
+                            r_index++;
+                        } else {
+                            encryptedText[e_index] = fInput[i];
+                            e_index++;
+                        }
                     }
+                } else {
+                    System.arraycopy(fInput, 0, encryptedText, 0, fInput.length);
                 }
 
-                int k = 0, c = 0;
+                int k = 0, c = 0, o_index = 0;
                 for (byte aByte : encryptedText) {
                     if (k == key.length) {
                         k = 0;
@@ -159,7 +180,7 @@ public class XORCryptor {
                     if (c == rands.length) {
                         c = 0;
                     }
-                    out[o_index] = (byte) (aByte ^ key[k] ^ rands[c]);
+                    out[o_index] = randomized ? (byte) (aByte ^ key[k] ^ rands[c]) : (byte) (aByte ^ key[k]);
                     o_index++;
                     k++;
                     c++;
@@ -169,5 +190,18 @@ public class XORCryptor {
         } catch (Exception e) {
             listener.onResult(null, e.getLocalizedMessage());
         }
+    }
+
+    private static synchronized byte[] handleRandomized(byte[] data) {
+        if (data.length < RANDOM_FLAG.length) {
+            return data;
+        }
+        int flagCount = 0;
+        for (int i = 0; i < RANDOM_FLAG.length; i++) {
+            if (data[i] == RANDOM_FLAG[i]) {
+                flagCount++;
+            }
+        }
+        return flagCount == RANDOM_FLAG.length ? Arrays.copyOfRange(data, RANDOM_FLAG.length, data.length) : data;
     }
 }
