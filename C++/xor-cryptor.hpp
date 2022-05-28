@@ -50,7 +50,7 @@ public:
      *
      * @note Enabling randomization will return you double the size of original data
      */
-    CipherData *encrypt(std::vector<byte> &text, const std::vector<byte> &key, bool randomized) {
+    static CipherData *encrypt(std::vector<byte> &text, const std::vector<byte> &key) {
         if (text.empty() || key.empty()) {
             return new CipherData(nullptr, new std::string("Text or key NULL"));
         }
@@ -62,20 +62,17 @@ public:
         }
 
         try {
-            auto *encrypted = new std::vector<byte>();
-            if (randomized) {
-                for (auto &b : RANDOM_FLAG) encrypted->push_back(b);
-            }
+            auto *encrypted_bytes = new std::vector<byte>();
 
             int k = 0;
             for (auto &i : text) {
                 if (k == key.size()) k = 0;
                 int c = effolkronium::random_static::get(0, 127);
-                encrypted->push_back(randomized ? (byte) (i ^ key[k] ^ c) : (byte) (i ^ key[k]));
-                if (randomized) encrypted->push_back((byte) c);
+                encrypted_bytes->push_back((byte) (i ^ key[k] ^ c));
+                encrypted_bytes->push_back((byte) (key[k] ^ c));
                 k++;
             }
-            return new CipherData(encrypted, nullptr);
+            return new CipherData(encrypted_bytes, nullptr);
         } catch (std::exception &e) {
             return new CipherData(nullptr, new std::string(e.what()));
         }
@@ -89,7 +86,7 @@ public:
      *
      * @returns CipherData with appropriate result
      */
-    CipherData *decrypt(std::vector<byte> &input, const std::vector<byte> &key) {
+    static CipherData *decrypt(std::vector<byte> &input, const std::vector<byte> &key) {
         if (input.empty() || key.empty()) {
             return new CipherData(nullptr, new std::string("Text or key NULL"));
         }
@@ -98,31 +95,14 @@ public:
         }
 
         try {
-            size_t m_size = input.size();
-            handleRandomized(&input);
-            bool randomized = m_size > input.size();
-
-            std::vector<byte> rands, *decrypt = new std::vector<byte>(), *encrypted = new std::vector<byte>();
-            if (randomized) {
-                for (int i = 0; i < input.size(); i++) {
-                    if (i % 2 == 0) {
-                        rands.push_back(input[i]);
-                    } else {
-                        encrypted->push_back(input[i]);
-                    }
-                }
-            } else {
-                encrypted = &input;
-            }
-
-            int k = 0, c = 0;
-            for (byte &i : *encrypted) {
+            auto *decrypted_bytes = new std::vector<byte>();
+            for (int i = 0, k = 0; i < input.size() - 1; i += 2, k++) {
                 if (k == key.size()) k = 0;
-                if (c == rands.size()) c = 0;
-                decrypt->push_back(randomized ? (byte) (i ^ key[k] ^ rands[c]) : (byte) (i ^ key[k]));
-                k++, c++;
+                byte encrypted_byte = input[i], cipher_byte = input[i + 1];
+                cipher_byte = (cipher_byte ^ key[k]);
+                decrypted_bytes->push_back((byte) (encrypted_byte ^ key[k] ^ cipher_byte));
             }
-            return new CipherData(decrypt, nullptr);
+            return new CipherData(decrypted_bytes, nullptr);
         } catch (std::exception &e) {
             return new CipherData(nullptr, new std::string(e.what()));
         }
@@ -132,19 +112,5 @@ public:
         std::stringstream out;
         for (byte &b : data) out << (char) b;
         return out.str();
-    }
-
-private:
-    const int RANDOM_FLAG_SIZE = 10;
-    std::vector<byte> RANDOM_FLAG = {'R', 'A', 'N', 'D', 'O', 'M', 'I', 'Z', 'E', 'D'};
-
-    void handleRandomized(std::vector<byte> *data) {
-        if (data->size() < RANDOM_FLAG_SIZE) return;
-
-        int flagCount = 0;
-        for (int i = 0; i < RANDOM_FLAG_SIZE; i++) {
-            if ((*data)[i] == RANDOM_FLAG[i]) flagCount++;
-        }
-        if (flagCount == RANDOM_FLAG_SIZE) data->erase(data->begin(), data->begin() + RANDOM_FLAG_SIZE);
     }
 };

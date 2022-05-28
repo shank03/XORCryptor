@@ -14,7 +14,7 @@ For C++
 
         // Encrypt
         std::vector<XorCrypt::byte> input(text.begin(), text.end()), cipherKey(key.begin(), key.end());
-        XorCrypt::CipherData *output = XorCrypt().encrypt(input, cipherKey, true /* or false */);
+        XorCrypt::CipherData *output = XorCrypt::encrypt(input, cipherKey, true /* or false */);
 
         if (output->err == nullptr) {
             // Handle encrypted text
@@ -26,7 +26,7 @@ For C++
 
         // Decrypt
         std::vector<XorCrypt::byte> encryptedText;    // Take input
-        XorCrypt::CipherData *output_dec = XorCrypt().decrypt(encryptedText, key);
+        XorCrypt::CipherData *output_dec = XorCrypt::decrypt(encryptedText, key);
 
         if (output_dec->err == nullptr) {
             // Handle decrypted text
@@ -37,11 +37,11 @@ For C++
         }
         return 0;
     }
-
     ```
 
 - Encrypting Files
-  ```c++
+
+    ```c++
     #include <iostream>
     #include "xor-cryptor.hpp"
 
@@ -55,7 +55,7 @@ For C++
         std::vector<XorCrypt::byte> cipherKey(key.begin(), key.end());
 
         // Encrypt
-        XorCrypt::CipherData *output = XorCrypt().encrypt(bytes, cipherKey, true /* or false */);
+        XorCrypt::CipherData *output = XorCrypt::encrypt(bytes, cipherKey, true /* or false */);
         if (output->err == nullptr) {
             // Handle encrypted data
             std::ofstream encryptedFile("encrypted_filename.ext", std::ios::out | std::ios::binary);
@@ -70,7 +70,7 @@ For C++
         std::ifstream fileEnc("encrypted_filename.ext", std::ios::binary);
         std::vector<XorCrypt::byte> encBytes((std::istreambuf_iterator<char>(fileEnc)), (std::istreambuf_iterator<char>()));
 
-        XorCrypt::CipherData *output_dec = XorCrypt().decrypt(encBytes, cipherKey);
+        XorCrypt::CipherData *output_dec = XorCrypt::decrypt(encBytes, cipherKey);
         if (output_dec->err == nullptr) {
             std::ofstream decryptedFile("decrypted_filename.ext", std::ios::out | std::ios::binary);
             std::copy(output_dec->data->begin(), output_dec->data->end(), std::ostreambuf_iterator<char>(decryptedFile));
@@ -78,7 +78,9 @@ For C++
         }
         return 0;
     }
-  ```
+    ```
 
 ### Special Thanks
-**Ilya Polishchuk ([effolkronium](https://github.com/effolkronium))** for [C++ random library](https://github.com/effolkronium/random)
+
+**Ilya Polishchuk ([effolkronium](https://github.com/effolkronium))**
+for [C++ random library](https://github.com/effolkronium/random)
