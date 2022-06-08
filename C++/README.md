@@ -13,19 +13,18 @@ For C++
         std::string text, key;  // Take input
 
         // Encrypt
-        std::vector<XorCrypt::byte> input(text.begin(), text.end()), cipherKey(key.begin(), key.end());
-        XorCrypt::CipherData *output = XorCrypt::encrypt(input, cipherKey, true /* or false */);
+        XorCrypt::CipherData *output = XorCrypt::encrypt(text, key);
 
         if (output->err == nullptr) {
             // Handle encrypted text
-            std::cout << XorCrypt::getString(*output->data) << "\n";
+            std::cout << output->data << "\n";
         } else {
             // Handle error
             std::cout << "Error: " << *output->err << "\n";
         }
 
         // Decrypt
-        std::vector<XorCrypt::byte> encryptedText;    // Take input
+        std::string encryptedText;    // Take input
         XorCrypt::CipherData *output_dec = XorCrypt::decrypt(encryptedText, key);
 
         if (output_dec->err == nullptr) {

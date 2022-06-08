@@ -12,7 +12,7 @@
  * copies or substantial portions of the Software.
  */
 
-#include "effolkronium/random.hpp"// Credits and Link: https://github.com/effolkronium/random
+#include "effolkronium/random.hpp"    // Credits and Link: https://github.com/effolkronium/random
 #include <sstream>
 #include <vector>
 
@@ -26,55 +26,70 @@
  */
 class XorCrypt {
 public:
-    typedef unsigned char byte;
-
     /**
      * Stores the encrypted or decrypted data
      * and error.
      */
     struct CipherData {
-        std::vector<byte> *data;
+        char const *data;
+        uint64_t n;
         std::string *err;
 
-        CipherData(std::vector<byte> *stream, std::string *error) : data(stream), err(error) {}
+        CipherData(char const *stream, uint64_t n, std::string *error) : data(stream), n(n), err(error) {}
     };
 
+    static CipherData *encrypt(std::string &input_text, std::string &input_key) {
+        const char *input_bytes = input_text.data(), *key_bytes = input_key.data();
+        uint64_t tn = input_text.size(), kn = input_key.size();
+        return encrypt_bytes(input_bytes, tn, key_bytes, kn);
+    }
+
+    static CipherData *encrypt(char const *input_bytes, uint64_t tn, char const *key_bytes, uint64_t kn) {
+        return encrypt_bytes(input_bytes, tn, key_bytes, kn);
+    }
+
+    static CipherData *decrypt(std::string &input_text, std::string &input_key) {
+        const char *input_bytes = input_text.data(), *key_bytes = input_key.data();
+        uint64_t tn = input_text.size(), kn = input_key.size();
+        return decrypt_bytes(input_bytes, tn, key_bytes, kn);
+    }
+
+    static CipherData *decrypt(char const *input_bytes, uint64_t tn, char const *key_bytes, uint64_t kn) {
+        return decrypt_bytes(input_bytes, tn, key_bytes, kn);
+    }
+
+private:
     /**
      * Function that encrypts the provided text
      *
      * @param text       The input to be encrypted
-     * @param key        The unique passcode for encrypting/decrypting text
-     * @param randomized Whether to randomize encryption
-     * 
-     * @returns CipherData with appropriate result
+     * @param key        The unique passcode for encrypting text
      *
-     * @note Enabling randomization will return you double the size of original data
+     * @returns CipherData with appropriate result
      */
-    static CipherData *encrypt(std::vector<byte> &text, const std::vector<byte> &key) {
-        if (text.empty() || key.empty()) {
-            return new CipherData(nullptr, new std::string("Text or key NULL"));
+    static CipherData *encrypt_bytes(char const *text, uint64_t tn, char const *key, uint64_t kn) {
+        if (text == nullptr || key == nullptr || tn == 0 || kn == 0) {
+            return new CipherData(nullptr, 0, new std::string("Text or key NULL"));
         }
-        if (key.size() > text.size()) {
-            return new CipherData(nullptr, new std::string("Key length more than input length"));
+        if (kn > tn) {
+            return new CipherData(nullptr, 0, new std::string("Key length more than input length"));
         }
-        if (text.size() < 6 || key.size() < 6) {
-            return new CipherData(nullptr, new std::string("Text length or Key length less than 6"));
+        if (tn < 6 || kn < 6) {
+            return new CipherData(nullptr, 0, new std::string("Text length or Key length less than 6"));
         }
 
         try {
-            auto *encrypted_bytes = new std::vector<byte>();
-
-            int k = 0;
-            for (auto &i : text) {
-                if (k == key.size()) k = 0;
-                int c = effolkronium::random_static::get(0, 127);
-                encrypted_bytes->push_back((byte) (i ^ key[k] ^ c));
-                encrypted_bytes->push_back((byte) (key[k] ^ c));
-                k++;
+            char *encrypted_bytes = new char[(tn * 2) + 1];
+            for (uint64_t i = 0, k = 0, idx = 0; i < tn; i++) {
+                if (k == kn) k = 0;
+                char c = effolkronium::random_static::get<char>(0, 127);
+                encrypted_bytes[idx++] = (text[i] ^ key[k++] ^ (char) c);
+                encrypted_bytes[idx++] = c;
             }
-            return new CipherData(encrypted_bytes, nullptr);
+            encrypted_bytes[tn * 2] = '\0';
+            return new CipherData(encrypted_bytes, tn * 2, nullptr);
         } catch (std::exception &e) {
-            return new CipherData(nullptr, new std::string(e.what()));
+            return new CipherData(nullptr, 0, new std::string(e.what()));
         }
     }
 
@@ -82,35 +97,29 @@ public:
      * Function that decrypts the encrypted text
      *
      * @param input    The encrypted text to be decrypted
-     * @param key      The unique passcode for encrypting/decrypting text
+     * @param key      The unique passcode for decrypting text
      *
      * @returns CipherData with appropriate result
      */
-    static CipherData *decrypt(std::vector<byte> &input, const std::vector<byte> &key) {
-        if (input.empty() || key.empty()) {
-            return new CipherData(nullptr, new std::string("Text or key NULL"));
+    static CipherData *decrypt_bytes(char const *input, uint64_t tn, char const *key, uint64_t kn) {
+        if (input == nullptr || key == nullptr || tn == 0 || kn == 0) {
+            return new CipherData(nullptr, 0, new std::string("Text or key NULL"));
         }
-        if (key.size() < 6) {
-            return new CipherData(nullptr, new std::string("Key length less than 6"));
+        if (kn < 6) {
+            return new CipherData(nullptr, 0, new std::string("Key length less than 6"));
         }
 
         try {
-            auto *decrypted_bytes = new std::vector<byte>();
-            for (int i = 0, k = 0; i < input.size() - 1; i += 2, k++) {
-                if (k == key.size()) k = 0;
-                byte encrypted_byte = input[i], cipher_byte = input[i + 1];
-                cipher_byte = (cipher_byte ^ key[k]);
-                decrypted_bytes->push_back((byte) (encrypted_byte ^ key[k] ^ cipher_byte));
+            char *decrypted_bytes = new char[(tn / 2) + 1];
+            for (int i = 0, k = 0, idx = 0; i < tn - 1; i += 2, k++) {
+                if (k == kn) k = 0;
+                char encrypted_byte = input[i], cipher_byte = input[i + 1];
+                decrypted_bytes[idx++] = (encrypted_byte ^ key[k] ^ cipher_byte);
             }
-            return new CipherData(decrypted_bytes, nullptr);
+            decrypted_bytes[tn / 2] = '\0';
+            return new CipherData(decrypted_bytes, tn / 2, nullptr);
         } catch (std::exception &e) {
-            return new CipherData(nullptr, new std::string(e.what()));
+            return new CipherData(nullptr, 0, new std::string(e.what()));
         }
-    }
-
-    static std::string getString(std::vector<byte> &data) {
-        std::stringstream out;
-        for (byte &b : data) out << (char) b;
-        return out.str();
     }
 };
