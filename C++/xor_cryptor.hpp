@@ -114,41 +114,43 @@ class XorCrypt {
         st->push_back(byte);
     }
 
+    static Byte *get_parent(std::vector<Byte *> *st, bit val) {
+        for (auto &pByte: *st) {
+            if (pByte->val == val) return pByte;
+        }
+        return new Byte(val);
+    }
+
     static CipherData *encrypt_bytes() {
         try {
             auto pCipherData = new CipherData();
             uint64_t ki = 0;
 
-            std::map<bit, Byte *> mp;
-            std::map<bit, std::vector<bit>> dump;
-
-            std::vector<Byte *> st;
+            auto *st = new std::vector<Byte *>();
             std::vector<bit> stream, exceptions;
 
             bit prev_parent = UCHAR_MAX;
             Node *prev_node = nullptr;
 
             for (uint64_t i = 0; i < gLen; i++) {
-                bit parent = (*gInput)[i], data = (*gInput)[i];
-                parent >>= 4;
-                data <<= 4;
+                bit parent = (*gInput)[i] >> 4, data = (*gInput)[i] << 4;
                 data >>= 4;
 
-                Byte *byte = mp.find(parent) != mp.end() ? mp[parent] : mp[parent] = new Byte(parent);
+                Byte *byte = get_parent(st, parent);
                 Node *node = new Node(data, nullptr);
                 byte->nodes.emplace_back(node);
-                byte->size = byte->nodes.size();
+                byte->size++;
 
                 if (prev_node != nullptr && prev_parent != UCHAR_MAX && prev_parent != parent) {
-                    prev_node->next = mp[parent];
+                    prev_node->next = byte;
                 }
                 prev_parent = parent;
                 prev_node = node;
-                insert_unique_parent(&st, byte);
+                insert_unique_parent(st, byte);
             }
 
-            pCipherData->data.push_back(static_cast<bit>(mp.size()));
-            for (auto &pByte: st) {
+            pCipherData->data.push_back(static_cast<bit>(st->size()));
+            for (auto &pByte: *st) {
                 write_node_size(&pCipherData->data, pByte->val, pByte->size);
 
                 while (pByte->idx < pByte->size) {
@@ -168,6 +170,7 @@ class XorCrypt {
                     stream.push_back(data);
                 }
             }
+            delete st;
             stream.insert(stream.end(), exceptions.begin(), exceptions.end());
             pCipherData->data.insert(pCipherData->data.end(), stream.begin(), stream.end());
             return pCipherData;
@@ -210,7 +213,6 @@ class XorCrypt {
 
                     pBof->extract_order(data);
                     bit val = pBof->l, next_parent = pBof->r;
-
                     pByte->nodes.push_back(new Node(val, next_parent == 0 ? nullptr : mp[next_parent]));
                 }
             }
@@ -231,7 +233,6 @@ class XorCrypt {
             Byte *curr = st[0];
             while (curr->idx < curr->size) {
                 Node *node = curr->nodes[curr->idx++];
-
                 bit data = curr->val << 4;
                 data |= node->val;
 
