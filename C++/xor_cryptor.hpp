@@ -80,6 +80,10 @@ class XorCrypt {
         void write_to_stream(std::vector<bit> *stream) const {
             for (int i = byte_length - 1; i >= 0; i--) stream->push_back((*bit_stream)[i]);
         }
+
+        ~ByteStream() {
+            delete bit_stream;
+        }
     };
 
     struct Node;
@@ -105,6 +109,7 @@ class XorCrypt {
 
         stream->push_back(parent);
         bs->write_to_stream(stream);
+        delete bs;
     }
 
     static void insert_unique_parent(std::vector<Byte *> *st, Byte *byte) {
