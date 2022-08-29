@@ -53,6 +53,8 @@ class XorCrypt {
             l = value >> 4, r = value << 4;
             r >>= 4;
         }
+
+        ~ByteOrderInfo() = default;
     };
 
     struct ByteStream {
@@ -183,53 +185,55 @@ class XorCrypt {
             uint64_t ki = 0;
             auto pCipherData = new CipherData();
 
-            std::map<bit, Byte *> mp;
-            std::vector<Byte *> st;
-            for (int i = 0; i < 16; i++) mp[i] = nullptr;
+            auto *st = new std::vector<Byte *>(16, nullptr);
+            auto *order = new std::vector<bit>();
+            auto *pBOF = new ByteOrderInfo();
 
-            auto *pBof = new ByteOrderInfo();
             uint64_t idx = 0;
-            bit token_len = (*gInput)[idx++];
-            while (token_len--) {
-                pBof->extract_order((*gInput)[idx++]);
-                bit parent = pBof->l, b_len = pBof->r;
+            bit parent_len = (*gInput)[idx++];
+            while (parent_len--) {
+                pBOF->extract_order((*gInput)[idx++]);
+                bit parent = pBOF->l, b_len = pBOF->r;
 
                 uint64_t data_len = 0, bits = idx + uint64_t(b_len);
                 while (idx < bits) {
                     data_len <<= 8;
                     data_len |= uint64_t((*gInput)[idx++]);
                 }
-                mp[parent] = new Byte(parent);
-                mp[parent]->size = data_len;
-                st.push_back(mp[parent]);
+                if ((*st)[parent] == nullptr) {
+                    (*st)[parent] = new Byte(parent);
+                    order->push_back(parent);
+                }
+                (*st)[parent]->size = data_len;
             }
 
-            for (auto &pByte: st) {
-                while (pByte->nodes->size() != pByte->size) {
+            for (auto &i: *order) {
+                while ((*st)[i]->nodes->size() != (*st)[i]->size) {
                     bit data = (*gInput)[idx++];
                     if (ki == gKey->size()) ki = 0;
                     data ^= (*gKey)[ki++];
 
-                    pBof->extract_order(data);
-                    bit val = pBof->l, next_parent = pBof->r;
-                    pByte->nodes->push_back(new Node(val, next_parent == 0 ? nullptr : mp[next_parent]));
+                    pBOF->extract_order(data);
+                    bit val = pBOF->l, next_parent = pBOF->r;
+                    (*st)[i]->nodes->push_back(new Node(val, next_parent == 0 ? nullptr : (*st)[next_parent]));
                 }
             }
 
             while (idx < gLen) {
-                pBof->extract_order((*gInput)[idx++]);
-                bit parent = pBof->l;
-                uint64_t bits = uint64_t(pBof->r) + idx;
+                pBOF->extract_order((*gInput)[idx++]);
+                bit parent = pBOF->l;
+                uint64_t bits = uint64_t(pBOF->r) + idx;
 
                 uint64_t node_idx = 0;
                 while (idx < bits) {
                     node_idx <<= 8;
                     node_idx |= (*gInput)[idx++];
                 }
-                (*mp[parent]->nodes)[node_idx]->next = mp[bit(0)];
+                (*(*st)[parent]->nodes)[node_idx]->next = (*st)[bit(0)];
             }
+            delete pBOF;
 
-            Byte *curr = st[0];
+            Byte *curr = (*st)[(*order)[0]];
             while (curr->idx < curr->size) {
                 Node *node = (*curr->nodes)[curr->idx++];
                 bit data = curr->val << 4;
@@ -238,6 +242,8 @@ class XorCrypt {
                 pCipherData->data.push_back(data);
                 if (node->next) curr = node->next;
             }
+            delete st;
+            delete order;
             return pCipherData;
         } catch (std::exception &e) {
             return new CipherData(true);
