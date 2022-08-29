@@ -15,7 +15,6 @@
 #include <vector>
 #include <map>
 #include <fstream>
-#include <sys/stat.h>
 #include <filesystem>
 
 /**
@@ -29,9 +28,6 @@
 class XorCrypt {
 
     typedef unsigned char bit;
-
-    inline static std::vector<bit> *gInput = nullptr, *gKey = nullptr;
-    inline static uint64_t gLen = 0;
 
     struct CipherData {
         std::vector<bit> data;
@@ -137,19 +133,19 @@ class XorCrypt {
         (*st)[parent]->stream->push_back(bData);
     }
 
-    static CipherData *encrypt_bytes() {
+    static CipherData *encrypt_bytes(std::vector<bit> *input, uint64_t i_len, std::vector<bit> *key) {
         try {
             auto pCipherData = new CipherData();
-            uint64_t ki = 0;
+            uint64_t k_idx = 0;
 
             auto *st = new std::vector<Byte *>(16, nullptr);
             auto *stream = new std::vector<bit>(), *exceptions = new std::vector<bit>,
                     *order = new std::vector<bit>();
 
             Node *node = new Node();
-            for (uint64_t i = 0; i < gLen; i++) {
+            for (uint64_t i = 0; i < i_len; i++) {
                 node->reset();
-                bit parent = (*gInput)[i] >> 4, data = (*gInput)[i] << 4;
+                bit parent = (*input)[i] >> 4, data = (*input)[i] << 4;
                 data >>= 4;
 
                 if ((*st)[parent] == nullptr) {
@@ -159,8 +155,8 @@ class XorCrypt {
                 node->val = data;
                 (*st)[parent]->size++;
 
-                if (i != gLen - 1) {
-                    bit next_parent = (*gInput)[i + 1] >> 4;
+                if (i != i_len - 1) {
+                    bit next_parent = (*input)[i + 1] >> 4;
                     if ((*st)[next_parent] == nullptr) {
                         (*st)[next_parent] = new Byte(next_parent);
                         order->push_back(next_parent);
@@ -176,9 +172,9 @@ class XorCrypt {
                 write_node_size(&pCipherData->data, pByte->val, pByte->size);
 
                 for (auto &b: *pByte->stream) {
-                    if (ki == gKey->size()) ki = 0;
+                    if (k_idx == key->size()) k_idx = 0;
                     bit bData = b;
-                    bData ^= (*gKey)[ki++];
+                    bData ^= (*key)[k_idx++];
                     stream->push_back(bData);
                 }
             }
@@ -195,7 +191,7 @@ class XorCrypt {
         }
     }
 
-    static CipherData *decrypt_bytes() {
+    static CipherData *decrypt_bytes(std::vector<bit> *input, uint64_t i_len, std::vector<bit> *key) {
         try {
             uint64_t ki = 0;
             auto pCipherData = new CipherData();
@@ -205,15 +201,15 @@ class XorCrypt {
             auto *pBOF = new ByteOrderInfo();
 
             uint64_t idx = 0;
-            bit parent_len = (*gInput)[idx++];
+            bit parent_len = (*input)[idx++];
             while (parent_len--) {
-                pBOF->extract_order((*gInput)[idx++]);
+                pBOF->extract_order((*input)[idx++]);
                 bit parent = pBOF->l, b_len = pBOF->r;
 
                 uint64_t data_len = 0, bits = idx + uint64_t(b_len);
                 while (idx < bits) {
                     data_len <<= 8;
-                    data_len |= uint64_t((*gInput)[idx++]);
+                    data_len |= uint64_t((*input)[idx++]);
                 }
                 if ((*st)[parent] == nullptr) {
                     (*st)[parent] = new Byte(parent);
@@ -224,9 +220,9 @@ class XorCrypt {
 
             for (auto &i: *order) {
                 while ((*st)[i]->nodes->size() != (*st)[i]->size) {
-                    bit data = (*gInput)[idx++];
-                    if (ki == gKey->size()) ki = 0;
-                    data ^= (*gKey)[ki++];
+                    bit data = (*input)[idx++];
+                    if (ki == key->size()) ki = 0;
+                    data ^= (*key)[ki++];
 
                     pBOF->extract_order(data);
                     bit val = pBOF->l, next_parent = pBOF->r;
@@ -234,15 +230,15 @@ class XorCrypt {
                 }
             }
 
-            while (idx < gLen) {
-                pBOF->extract_order((*gInput)[idx++]);
+            while (idx < i_len) {
+                pBOF->extract_order((*input)[idx++]);
                 bit parent = pBOF->l;
                 uint64_t bits = uint64_t(pBOF->r) + idx;
 
                 uint64_t node_idx = 0;
                 while (idx < bits) {
                     node_idx <<= 8;
-                    node_idx |= (*gInput)[idx++];
+                    node_idx |= (*input)[idx++];
                 }
                 (*(*st)[parent]->nodes)[node_idx]->next = (*st)[bit(0)];
             }
@@ -266,24 +262,22 @@ class XorCrypt {
     }
 
     static bool process_file(std::string &src_path, std::string &dest_path, std::string &key, bool to_encrypt) {
-        clearG();
-
         std::ifstream file(src_path, std::ios::binary);
         std::ofstream output_file(dest_path, std::ios::binary);
         if (!file.is_open()) return false;
         if (!output_file.is_open()) return false;
 
-        gInput = new std::vector<bit>(), gKey = new std::vector<bit>();
-        for (auto &i: key) gKey->push_back(reinterpret_cast<bit &>(i));
-        while (!file.eof()) {
-            char chr;
-            file.get(chr);
-            gInput->push_back(reinterpret_cast<bit &>(chr));
-        }
-        file.close();
-        gLen = gInput->size();
+        auto *cipher_key = new std::vector<bit>();
+        for (auto &i: key) cipher_key->push_back(reinterpret_cast<bit &>(i));
 
-        CipherData *res = to_encrypt ? encrypt_bytes() : decrypt_bytes();
+        auto *input = new std::vector<char>();
+        input->reserve(std::filesystem::file_size(src_path));
+        input->assign((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+        file.close();
+
+        CipherData *res = to_encrypt ?
+                          encrypt_bytes(reinterpret_cast<std::vector<bit> *>(input), input->size(), cipher_key) :
+                          decrypt_bytes(reinterpret_cast<std::vector<bit> *>(input), input->size(), cipher_key);
         if (res->error) return false;
         for (auto &i: res->data) {
             output_file.put(reinterpret_cast<char &>(i));
@@ -294,21 +288,12 @@ class XorCrypt {
     }
 
     static CipherData *process_string(std::string &str, std::string &key, bool to_encrypt) {
-        clearG();
-
-        gInput = new std::vector<bit>(), gKey = new std::vector<bit>();
-        for (auto &i: str) gInput->push_back(reinterpret_cast<bit &>(i));
-        for (auto &i: key) gKey->push_back(reinterpret_cast<bit &>(i));
-        gLen = gInput->size();
-        return to_encrypt ? encrypt_bytes() : decrypt_bytes();
-    }
-
-    static void clearG() {
-        if (gInput != nullptr) gInput->clear();
-        gInput = nullptr;
-        if (gKey != nullptr) gKey->clear();
-        gKey = nullptr;
-        gLen = 0;
+        auto *input = new std::vector<bit>(), *cipher_key = new std::vector<bit>();
+        for (auto &i: str) input->push_back(reinterpret_cast<bit &>(i));
+        for (auto &i: key) cipher_key->push_back(reinterpret_cast<bit &>(i));
+        return to_encrypt ?
+               encrypt_bytes(input, input->size(), cipher_key) :
+               decrypt_bytes(input, input->size(), cipher_key);
     }
 
 public:
