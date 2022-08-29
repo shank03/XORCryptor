@@ -44,23 +44,23 @@ class XorCrypt {
     };
 
     struct ByteOrderInfo {
-        bit l, r;
+        bit lv, rv;
 
-        ByteOrderInfo() : l(0), r(0) {}
+        ByteOrderInfo() : lv(0), rv(0) {}
 
         void extract_order(bit value) {
-            l = value >> 4, r = value << 4;
-            r >>= 4;
+            lv = value >> 4, rv = value << 4;
+            rv >>= 4;
         }
 
         ~ByteOrderInfo() = default;
     };
 
-    struct ByteStream {
+    struct BitStream {
         int byte_length;
         std::vector<uint64_t> *bit_stream;
 
-        explicit ByteStream(uint64_t value) : byte_length(0), bit_stream(nullptr) {
+        explicit BitStream(uint64_t value) : byte_length(0), bit_stream(nullptr) {
             if (value == 0) {
                 byte_length = 1;
                 bit_stream = new std::vector<uint64_t>(2, 0);
@@ -82,7 +82,7 @@ class XorCrypt {
             for (int i = byte_length - 1; i >= 0; i--) stream->push_back((*bit_stream)[i]);
         }
 
-        ~ByteStream() {
+        ~BitStream() {
             delete bit_stream;
         }
     };
@@ -97,6 +97,11 @@ class XorCrypt {
 
         explicit Byte(int val) : val(val), idx(0), size(0), exp_idx(0),
                                  stream(new std::vector<bit>()), exceptions(nullptr) {}
+
+        ~Byte() {
+            delete stream;
+            delete exceptions;
+        }
     };
 
     struct Node {
@@ -111,64 +116,77 @@ class XorCrypt {
         }
     };
 
-    static void write_node_size(std::vector<bit> *stream, bit parent, uint64_t value) {
-        auto *bs = new ByteStream(value);
-        parent = (parent << 4) | reinterpret_cast<bit &>(bs->byte_length);
+    static void write_node_property(std::vector<bit> *stream, bit parent, uint64_t value) {
+        auto *pBS = new BitStream(value);
+        parent = (parent << 4) | reinterpret_cast<bit &>(pBS->byte_length);
 
         stream->push_back(parent);
-        bs->write_to_stream(stream);
-        delete bs;
+        pBS->write_to_stream(stream);
+        delete pBS;
     }
 
-    static void write_node(std::vector<Byte *> *st, std::vector<bit> *exceptions, bit parent, Node *node) {
-        bit bData = node->val;
-        bData <<= 4;
+    static void insert_node(std::vector<Byte *> *st, std::vector<bit> *exceptions, bit parent, Node *node) {
+        bit data = node->val;
+        data <<= 4;
         if (node->next) {
-            bit bParent = node->next->val;
-            if (bParent == 0) write_node_size(exceptions, parent, (*st)[parent]->idx);
-            bData |= bParent;
+            bit next_parent = node->next->val;
+            if (next_parent == 0) write_node_property(exceptions, parent, (*st)[parent]->idx);
+            data |= next_parent;
         }
         (*st)[parent]->idx++;
-        (*st)[parent]->stream->push_back(bData);
+        (*st)[parent]->stream->push_back(data);
     }
 
-    static CipherData *encrypt_bytes(std::vector<bit> *input, uint64_t i_len, std::vector<bit> *key) {
+    static Byte *get_next_valid_parent(std::vector<Byte *> *unique_byte_set, Byte *pByte, bit next_parent) {
+        if (next_parent == 0) {
+            if (pByte->exceptions == nullptr || pByte->exp_idx >= pByte->exceptions->size()) return pByte;
+            uint64_t exp_idx = (*pByte->exceptions)[pByte->exp_idx];
+            if (pByte->idx - uint64_t(1) == exp_idx) {
+                pByte->exp_idx++;
+                return (*unique_byte_set)[next_parent];
+            } else {
+                return pByte;
+            }
+        }
+        return (*unique_byte_set)[next_parent];
+    }
+
+    static CipherData *encrypt_bytes(std::vector<bit> *input, uint64_t length, std::vector<bit> *key) {
         try {
             auto pCipherData = new CipherData();
             uint64_t k_idx = 0;
 
-            auto *st = new std::vector<Byte *>(16, nullptr);
-            auto *stream = new std::vector<bit>(), *exceptions = new std::vector<bit>,
-                    *order = new std::vector<bit>();
+            auto *unique_byte_set = new std::vector<Byte *>(16, nullptr);
+            auto *stream = new std::vector<bit>(), *exceptions = new std::vector<bit>, *byte_order = new std::vector<bit>();
 
-            Node *node = new Node();
-            for (uint64_t i = 0; i < i_len; i++) {
-                node->reset();
+            Node *pNode = new Node();
+            for (uint64_t i = 0; i < length; i++) {
+                pNode->reset();
                 bit parent = (*input)[i] >> 4, data = (*input)[i] << 4;
                 data >>= 4;
 
-                if ((*st)[parent] == nullptr) {
-                    (*st)[parent] = new Byte(parent);
-                    order->push_back(parent);
+                if ((*unique_byte_set)[parent] == nullptr) {
+                    (*unique_byte_set)[parent] = new Byte(parent);
+                    byte_order->push_back(parent);
                 }
-                node->val = data;
-                (*st)[parent]->size++;
+                pNode->val = data;
+                (*unique_byte_set)[parent]->size++;
 
-                if (i != i_len - 1) {
+                if (i != length - 1) {
                     bit next_parent = (*input)[i + 1] >> 4;
-                    if ((*st)[next_parent] == nullptr) {
-                        (*st)[next_parent] = new Byte(next_parent);
-                        order->push_back(next_parent);
+                    if ((*unique_byte_set)[next_parent] == nullptr) {
+                        (*unique_byte_set)[next_parent] = new Byte(next_parent);
+                        byte_order->push_back(next_parent);
                     }
-                    if (parent != next_parent) node->next = (*st)[next_parent];
+                    if (parent != next_parent) pNode->next = (*unique_byte_set)[next_parent];
                 }
-                write_node(st, exceptions, parent, node);
+                insert_node(unique_byte_set, exceptions, parent, pNode);
             }
 
-            pCipherData->data.push_back(static_cast<bit>(order->size()));
-            for (auto &i: *order) {
-                Byte *pByte = (*st)[i];
-                write_node_size(&pCipherData->data, pByte->val, pByte->size);
+            pCipherData->data.push_back(static_cast<bit>(byte_order->size()));
+            for (auto &i: *byte_order) {
+                Byte *pByte = (*unique_byte_set)[i];
+                write_node_property(&pCipherData->data, pByte->val, pByte->size);
 
                 for (auto &b: *pByte->stream) {
                     if (k_idx == key->size()) k_idx = 0;
@@ -178,10 +196,10 @@ class XorCrypt {
                 }
                 delete pByte->stream;
             }
-            delete st;
+            delete unique_byte_set;
             pCipherData->data.insert(pCipherData->data.end(), stream->begin(), stream->end());
             pCipherData->data.insert(pCipherData->data.end(), exceptions->begin(), exceptions->end());
-            delete order;
+            delete byte_order;
             delete stream;
             delete exceptions;
 
@@ -191,87 +209,77 @@ class XorCrypt {
         }
     }
 
-    static CipherData *decrypt_bytes(std::vector<bit> *input, uint64_t i_len, std::vector<bit> *key) {
+    static CipherData *decrypt_bytes(std::vector<bit> *input, uint64_t length, std::vector<bit> *key) {
         try {
-            uint64_t ki = 0;
+            uint64_t k_idx = 0;
             auto pCipherData = new CipherData();
 
-            auto *st = new std::vector<Byte *>(16, nullptr);
-            auto *order = new std::vector<bit>();
+            auto *unique_byte_set = new std::vector<Byte *>(16, nullptr);
+            auto *byte_order = new std::vector<bit>();
             auto *pBOF = new ByteOrderInfo();
 
             uint64_t idx = 0, exception_partition = 0;
-            bit parent_len = (*input)[idx++];
-            while (parent_len--) {
+            bit parent_length = (*input)[idx++];
+            while (parent_length--) {
                 pBOF->extract_order((*input)[idx++]);
-                bit parent = pBOF->l, b_len = pBOF->r;
+                bit parent = pBOF->lv, bits_length = pBOF->rv;
 
-                uint64_t data_len = 0, bits = idx + uint64_t(b_len);
-                while (idx < bits) {
-                    data_len <<= 8;
-                    data_len |= uint64_t((*input)[idx++]);
+                uint64_t child_count = 0, bits_idx = idx + uint64_t(bits_length);
+                while (idx < bits_idx) {
+                    child_count <<= 8;
+                    child_count |= uint64_t((*input)[idx++]);
                 }
-                if ((*st)[parent] == nullptr) {
-                    (*st)[parent] = new Byte(parent);
-                    order->push_back(parent);
+                if ((*unique_byte_set)[parent] == nullptr) {
+                    (*unique_byte_set)[parent] = new Byte(parent);
+                    byte_order->push_back(parent);
                 }
-                (*st)[parent]->size = data_len;
-                exception_partition += data_len;
+                (*unique_byte_set)[parent]->size = child_count;
+                exception_partition += child_count;
             }
             uint64_t t_idx = idx;
             idx += exception_partition;
 
-            while (idx < i_len) {
+            while (idx < length) {
                 pBOF->extract_order((*input)[idx++]);
-                bit parent = pBOF->l;
-                uint64_t bits = uint64_t(pBOF->r) + idx;
+                bit parent = pBOF->lv;
+                uint64_t bits = uint64_t(pBOF->rv) + idx;
 
                 uint64_t node_idx = 0;
                 while (idx < bits) {
                     node_idx <<= 8;
                     node_idx |= (*input)[idx++];
                 }
-                if ((*st)[parent]->exceptions == nullptr) (*st)[parent]->exceptions = new std::vector<uint64_t>();
-                (*st)[parent]->exceptions->push_back(node_idx);
+                if ((*unique_byte_set)[parent]->exceptions == nullptr) {
+                    (*unique_byte_set)[parent]->exceptions = new std::vector<uint64_t>();
+                }
+                (*unique_byte_set)[parent]->exceptions->push_back(node_idx);
             }
             idx = t_idx;
 
-            for (auto &i: *order) {
-                while ((*st)[i]->stream->size() != (*st)[i]->size) {
+            for (auto &i: *byte_order) {
+                while ((*unique_byte_set)[i]->stream->size() != (*unique_byte_set)[i]->size) {
                     bit data = (*input)[idx++];
-                    if (ki == key->size()) ki = 0;
-                    data ^= (*key)[ki++];
-                    (*st)[i]->stream->push_back(data);
+                    if (k_idx == key->size()) k_idx = 0;
+                    data ^= (*key)[k_idx++];
+                    (*unique_byte_set)[i]->stream->push_back(data);
                 }
             }
 
-            Byte *pByte = (*st)[(*order)[0]];
+            Byte *pByte = (*unique_byte_set)[(*byte_order)[0]];
             while (pByte->idx < pByte->size) {
                 bit data = (*pByte->stream)[pByte->idx++];
 
                 pBOF->extract_order(data);
-                bit val = pBOF->l, next_parent = pBOF->r;
+                bit val = pBOF->lv, next_parent = pBOF->rv;
                 data = pByte->val << 4;
                 data |= val;
 
                 pCipherData->data.push_back(data);
-                pByte = [&]() -> Byte * {
-                    if (next_parent == 0) {
-                        if (pByte->exceptions == nullptr || pByte->exp_idx >= pByte->exceptions->size()) return pByte;
-                        uint64_t exp_idx = (*pByte->exceptions)[pByte->exp_idx];
-                        if (pByte->idx - uint64_t(1) == exp_idx) {
-                            pByte->exp_idx++;
-                            return (*st)[next_parent];
-                        } else {
-                            return pByte;
-                        }
-                    }
-                    return (*st)[next_parent];
-                }();
+                pByte = get_next_valid_parent(unique_byte_set, pByte, next_parent);
             }
             delete pBOF;
-            delete st;
-            delete order;
+            delete unique_byte_set;
+            delete byte_order;
             return pCipherData;
         } catch (std::exception &e) {
             return new CipherData(true);
