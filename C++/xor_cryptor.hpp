@@ -15,6 +15,8 @@
 #include <vector>
 #include <map>
 #include <fstream>
+#include <sys/stat.h>
+#include <filesystem>
 
 /**
  * XORCryptor
@@ -94,15 +96,24 @@ class XorCrypt {
         bit val;
         uint64_t size, idx;
         std::vector<Node *> *nodes;
+        std::vector<bit> *stream;
 
-        explicit Byte(int val) : val(val), idx(0), size(0), nodes(new std::vector<Node *>()) {}
+        explicit Byte(int val) : val(val), idx(0), size(0),
+                                 nodes(new std::vector<Node *>()), stream(new std::vector<bit>()) {}
     };
 
     struct Node {
         bit val;
         Byte *next;
 
+        Node() : val(0), next(nullptr) {}
+
         Node(bit v, Byte *n) : val(v), next(n) {}
+
+        void reset() {
+            val = 0;
+            next = nullptr;
+        }
     };
 
     static void write_node_size(std::vector<bit> *stream, bit parent, uint64_t value) {
@@ -114,6 +125,18 @@ class XorCrypt {
         delete bs;
     }
 
+    static void write_node(std::vector<Byte *> *st, std::vector<bit> *exceptions, bit parent, Node *node) {
+        bit bData = node->val;
+        bData <<= 4;
+        if (node->next) {
+            bit bParent = node->next->val;
+            if (bParent == 0) write_node_size(exceptions, parent, (*st)[parent]->idx);
+            bData |= bParent;
+        }
+        (*st)[parent]->idx++;
+        (*st)[parent]->stream->push_back(bData);
+    }
+
     static CipherData *encrypt_bytes() {
         try {
             auto pCipherData = new CipherData();
@@ -123,10 +146,9 @@ class XorCrypt {
             auto *stream = new std::vector<bit>(), *exceptions = new std::vector<bit>,
                     *order = new std::vector<bit>();
 
-            bit prev_parent = UCHAR_MAX;
-            Node *prev_node = nullptr;
-
+            Node *node = new Node();
             for (uint64_t i = 0; i < gLen; i++) {
+                node->reset();
                 bit parent = (*gInput)[i] >> 4, data = (*gInput)[i] << 4;
                 data >>= 4;
 
@@ -134,15 +156,18 @@ class XorCrypt {
                     (*st)[parent] = new Byte(parent);
                     order->push_back(parent);
                 }
-                Node *node = new Node(data, nullptr);
-                (*st)[parent]->nodes->emplace_back(node);
+                node->val = data;
                 (*st)[parent]->size++;
 
-                if (prev_node != nullptr && prev_parent != UCHAR_MAX && prev_parent != parent) {
-                    prev_node->next = (*st)[parent];
+                if (i != gLen - 1) {
+                    bit next_parent = (*gInput)[i + 1] >> 4;
+                    if ((*st)[next_parent] == nullptr) {
+                        (*st)[next_parent] = new Byte(next_parent);
+                        order->push_back(next_parent);
+                    }
+                    if (parent != next_parent) node->next = (*st)[next_parent];
                 }
-                prev_parent = parent;
-                prev_node = node;
+                write_node(st, exceptions, parent, node);
             }
 
             pCipherData->data.push_back(static_cast<bit>(order->size()));
@@ -150,21 +175,11 @@ class XorCrypt {
                 Byte *pByte = (*st)[i];
                 write_node_size(&pCipherData->data, pByte->val, pByte->size);
 
-                while (pByte->idx < pByte->size) {
-                    Node *node = (*pByte->nodes)[pByte->idx];
-                    bit data = node->val;
-                    data <<= 4;
-
-                    if (node->next) {
-                        bit parent = node->next->val;
-                        if (parent == 0) write_node_size(exceptions, pByte->val, pByte->idx);
-                        data |= parent;
-                    }
-                    pByte->idx++;
-
+                for (auto &b: *pByte->stream) {
                     if (ki == gKey->size()) ki = 0;
-                    data ^= (*gKey)[ki++];
-                    stream->push_back(data);
+                    bit bData = b;
+                    bData ^= (*gKey)[ki++];
+                    stream->push_back(bData);
                 }
             }
             delete st;
