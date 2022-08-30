@@ -14,7 +14,7 @@ out/
 *.sln
 Nodejs/package-lock.json
 
-main.cpp
+temp.cpp
 effolkronium
 .*
 CMakeLists.txt
