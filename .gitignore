@@ -14,11 +14,9 @@ out/
 *.sln
 Nodejs/package-lock.json
 
-C++/main.cpp
-C++/effolkronium
-C++/.*
-C++/CMakeLists.txt
-C++/tests
-C++/cmake-build-debug
-
-Java/com/beesechurger/shank03/Main.java
+main.cpp
+effolkronium
+.*
+CMakeLists.txt
+tests
+cmake-build-debug
