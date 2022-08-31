@@ -20,6 +20,17 @@ bool file_exists(const char *name) {
 }
 
 int exec_cli(int mode, string &file_name, string &key) {
+    function<void(string stat, bool)> callback = [](const string &stat, bool print = false) -> void {
+        if (print) {
+            std::cout << "Status: " << stat << "\n";
+            return;
+        }
+        std::cout.flush();
+        std::cout << string(10 + stat.length() * 2, ' ') << "\r";
+        std::cout.flush();
+        std::cout << "Status: " << stat << "\r";
+    };
+
     string dest_file_name(file_name);
     bool res;
     if (mode) {
@@ -29,8 +40,11 @@ int exec_cli(int mode, string &file_name, string &key) {
         }
         dest_file_name.append(".xor");
         try {
-            cout << "Encrypting...\n";
-            res = XorCrypt::encrypt_file(file_name, dest_file_name, key);
+            std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+            res = XorCrypt::encrypt_file(file_name, dest_file_name, key, &callback);
+
+            auto time_end = chrono::duration_cast<chrono::milliseconds>(chrono::steady_clock::now() - begin).count();
+            callback("Time taken = " + to_string(time_end) + " [ms]", true);
         } catch (exception &e) {
             cout << "Unknown error occurred\n";
             cout << e.what() << "\n";
@@ -43,8 +57,11 @@ int exec_cli(int mode, string &file_name, string &key) {
         }
         dest_file_name = dest_file_name.substr(0, dest_file_name.length() - 4);
         try {
-            cout << "Decrypting...\n";
-            res = XorCrypt::decrypt_file(file_name, dest_file_name, key);
+            std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+            res = XorCrypt::decrypt_file(file_name, dest_file_name, key, &callback);
+
+            auto time_end = chrono::duration_cast<chrono::milliseconds>(chrono::steady_clock::now() - begin).count();
+            callback("Time taken = " + to_string(time_end) + " [ms]", true);
         } catch (exception &e) {
             cout << "Unknown error occurred\n";
             cout << e.what() << "\n";

@@ -30,6 +30,8 @@ class XorCrypt {
 
     typedef unsigned char bit;
 
+    typedef std::function<void(std::string stat, bool print)> ProcessCallBack;
+
     struct CipherData {
         std::vector<bit> data;
         bool error;
@@ -151,8 +153,9 @@ class XorCrypt {
         return (*unique_byte_set)[next_parent];
     }
 
-    static CipherData *encrypt_bytes(std::vector<bit> *input, uint64_t length, std::vector<bit> *key) {
+    static CipherData *encrypt_bytes(std::vector<bit> *input, uint64_t length, std::vector<bit> *key, ProcessCallBack *callBack) {
         try {
+            (*callBack)("Started encryption", false);
             auto pCipherData = new CipherData();
             uint64_t k_idx = 0;
 
@@ -183,6 +186,7 @@ class XorCrypt {
                 insert_node(unique_byte_set, exceptions, parent, pNode);
             }
 
+            (*callBack)("Flushing byte stream", false);
             pCipherData->data.push_back(static_cast<bit>(byte_order->size()));
             for (auto &i: *byte_order) {
                 Byte *pByte = (*unique_byte_set)[i];
@@ -209,8 +213,9 @@ class XorCrypt {
         }
     }
 
-    static CipherData *decrypt_bytes(std::vector<bit> *input, uint64_t length, std::vector<bit> *key) {
+    static CipherData *decrypt_bytes(std::vector<bit> *input, uint64_t length, std::vector<bit> *key, ProcessCallBack *callBack) {
         try {
+            (*callBack)("Started decryption", false);
             uint64_t k_idx = 0;
             auto pCipherData = new CipherData();
 
@@ -255,6 +260,7 @@ class XorCrypt {
                 (*unique_byte_set)[parent]->exceptions->push_back(node_idx);
             }
             idx = t_idx;
+            (*callBack)("Parsed header", false);
 
             for (auto &i: *byte_order) {
                 while ((*unique_byte_set)[i]->stream->size() != (*unique_byte_set)[i]->size) {
@@ -265,6 +271,7 @@ class XorCrypt {
                 }
             }
 
+            (*callBack)("Flushing byte stream", false);
             Byte *pByte = (*unique_byte_set)[(*byte_order)[0]];
             while (pByte->idx < pByte->size) {
                 bit data = (*pByte->stream)[pByte->idx++];
@@ -286,11 +293,12 @@ class XorCrypt {
         }
     }
 
-    static bool process_file(std::string &src_path, std::string &dest_path, std::string &key, bool to_encrypt) {
+    static bool process_file(std::string &src_path, std::string &dest_path, std::string &key, bool to_encrypt, ProcessCallBack *callBack) {
         std::ifstream file(src_path, std::ios::binary);
         std::ofstream output_file(dest_path, std::ios::binary);
         if (!file.is_open()) return false;
         if (!output_file.is_open()) return false;
+        (*callBack)("Reading file", false);
 
         auto *cipher_key = new std::vector<bit>();
         for (auto &i: key) cipher_key->push_back(reinterpret_cast<bit &>(i));
@@ -299,13 +307,15 @@ class XorCrypt {
         input->reserve(std::filesystem::file_size(src_path));
         input->assign((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
         file.close();
+        (*callBack)("Size: " + std::to_string(input->size()) + " bytes", true);
 
         CipherData *res = to_encrypt ?
-                          encrypt_bytes(reinterpret_cast<std::vector<bit> *>(input), input->size(), cipher_key) :
-                          decrypt_bytes(reinterpret_cast<std::vector<bit> *>(input), input->size(), cipher_key);
+                          encrypt_bytes(reinterpret_cast<std::vector<bit> *>(input), input->size(), cipher_key, callBack) :
+                          decrypt_bytes(reinterpret_cast<std::vector<bit> *>(input), input->size(), cipher_key, callBack);
         delete input;
 
         if (res->error) return false;
+        (*callBack)("Writing file", false);
         for (auto &i: res->data) {
             output_file.put(reinterpret_cast<char &>(i));
         }
@@ -314,29 +324,29 @@ class XorCrypt {
         return !file.is_open() && !output_file.is_open();
     }
 
-    static CipherData *process_string(std::string &str, std::string &key, bool to_encrypt) {
+    static CipherData *process_string(std::string &str, std::string &key, bool to_encrypt, ProcessCallBack *callBack) {
         auto *input = new std::vector<bit>(), *cipher_key = new std::vector<bit>();
         for (auto &i: str) input->push_back(reinterpret_cast<bit &>(i));
         for (auto &i: key) cipher_key->push_back(reinterpret_cast<bit &>(i));
         return to_encrypt ?
-               encrypt_bytes(input, input->size(), cipher_key) :
-               decrypt_bytes(input, input->size(), cipher_key);
+               encrypt_bytes(input, input->size(), cipher_key, callBack) :
+               decrypt_bytes(input, input->size(), cipher_key, callBack);
     }
 
 public:
-    static CipherData *encrypt_string(std::string &str, std::string &key) {
-        return process_string(str, key, true);
+    static CipherData *encrypt_string(std::string &str, std::string &key, ProcessCallBack *callBack) {
+        return process_string(str, key, true, callBack);
     }
 
-    static bool encrypt_file(std::string &src_path, std::string &dest_path, std::string &key) {
-        return process_file(src_path, dest_path, key, true);
+    static bool encrypt_file(std::string &src_path, std::string &dest_path, std::string &key, ProcessCallBack *callBack) {
+        return process_file(src_path, dest_path, key, true, callBack);
     }
 
-    static CipherData *decrypt_string(std::string &str, std::string &key) {
-        return process_string(str, key, false);
+    static CipherData *decrypt_string(std::string &str, std::string &key, ProcessCallBack *callBack) {
+        return process_string(str, key, false, callBack);
     }
 
-    static bool decrypt_file(std::string &src_path, std::string &dest_path, std::string &key) {
-        return process_file(src_path, dest_path, key, false);
+    static bool decrypt_file(std::string &src_path, std::string &dest_path, std::string &key, ProcessCallBack *callBack) {
+        return process_file(src_path, dest_path, key, false, callBack);
     }
 };
