@@ -14,8 +14,9 @@ void print_help() {
 }
 
 bool file_exists(const char *name) {
-    struct stat buffer {};
-    return (stat(name, &buffer) == 0);
+    struct stat buffer{};
+    int res = stat(name, &buffer);
+    return res == 0 && S_ISREG(buffer.st_mode);
 }
 
 int exec_cli(int mode, std::string &file_name, std::string &key) {
@@ -59,7 +60,9 @@ int exec_cli(int mode, std::string &file_name, std::string &key) {
             return 1;
         }
     }
-    std::cout << (res ? (mode ? "Encryption complete -> " + dest_file_name : "Decryption complete -> " + dest_file_name) : (mode ? "Encryption failed" : "Decryption failed")) << "\n";
+    std::cout << (res ?
+                  (mode ? "Encryption complete -> " + dest_file_name : "Decryption complete -> " + dest_file_name) :
+                  (mode ? "Encryption failed" : "Decryption failed")) << "\n";
     return 0;
 }
 
