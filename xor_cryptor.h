@@ -40,22 +40,22 @@ class XorCrypt {
 
     static Byte *get_next_valid_parent(std::vector<Byte *> *unique_byte_set, Byte *pByte, bit next_parent);
 
-    static CipherData *encrypt_bytes(std::vector<bit> *input, uint64_t length, std::vector<bit> *key, CLI *cli_interface);
+    static CipherData *encrypt_bytes(std::vector<bit> *input, uint64_t length, std::vector<bit> *key, CLIProgressIndicator *cli_interface);
 
-    static CipherData *decrypt_bytes(std::vector<bit> *input, uint64_t length, std::vector<bit> *key, CLI *cli_interface);
+    static CipherData *decrypt_bytes(std::vector<bit> *input, uint64_t length, std::vector<bit> *key, CLIProgressIndicator *cli_interface);
 
-    static bool process_file(std::string &src_path, std::string &dest_path, std::string &key, bool to_encrypt, CLI *cli_interface);
+    static bool process_file(std::string &src_path, std::string &dest_path, std::string &key, bool to_encrypt, CLIProgressIndicator *cli_interface);
 
-    static CipherData *process_string(std::string &str, std::string &key, bool to_encrypt, CLI *cli_interface);
+    static CipherData *process_string(std::string &str, std::string &key, bool to_encrypt, CLIProgressIndicator *cli_interface);
 
 public:
-    static CipherData *encrypt_string(std::string &str, std::string &key, CLI *cli_interface);
+    static CipherData *encrypt_string(std::string &str, std::string &key, CLIProgressIndicator *cli_interface);
 
-    static bool encrypt_file(std::string &src_path, std::string &dest_path, std::string &key, CLI *cli_interface);
+    static bool encrypt_file(std::string &src_path, std::string &dest_path, std::string &key, CLIProgressIndicator *cli_interface);
 
-    static CipherData *decrypt_string(std::string &str, std::string &key, CLI *cli_interface);
+    static CipherData *decrypt_string(std::string &str, std::string &key, CLIProgressIndicator *cli_interface);
 
-    static bool decrypt_file(std::string &src_path, std::string &dest_path, std::string &key, CLI *cli_interface);
+    static bool decrypt_file(std::string &src_path, std::string &dest_path, std::string &key, CLIProgressIndicator *cli_interface);
 };
 
 #endif //XOR_CRYPTOR_H

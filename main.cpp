@@ -1,4 +1,6 @@
+#include "cli.h"
 #include "xor_cryptor.h"
+#include <cstring>
 #include <iostream>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -12,12 +14,56 @@ void print_help() {
 }
 
 bool file_exists(const char *name) {
-    struct stat buffer{};
+    struct stat buffer {};
     return (stat(name, &buffer) == 0);
 }
 
+int exec_cli(int mode, std::string &file_name, std::string &key) {
+    auto *cli = new CLIProgressIndicator();
+    cli->start_progress();
+
+    std::string dest_file_name(file_name);
+    bool res;
+    if (mode) {
+        if (dest_file_name.find(".xor") != std::string::npos) {
+            std::cout << "This file is not for encryption\n";
+            return 1;
+        }
+        dest_file_name.append(".xor");
+        try {
+            std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+            res = XorCrypt::encrypt_file(file_name, dest_file_name, key, cli);
+
+            auto time_end = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - begin).count();
+            CLIProgressIndicator::print_status("Time taken = " + std::to_string(time_end) + " [ms]");
+        } catch (std::exception &e) {
+            std::cout << "Unknown error occurred\n";
+            std::cout << e.what() << "\n";
+            return 1;
+        }
+    } else {
+        if (dest_file_name.find(".xor") == std::string::npos) {
+            std::cout << "This file is not for decryption\n";
+            return 1;
+        }
+        dest_file_name = dest_file_name.substr(0, dest_file_name.length() - 4);
+        try {
+            std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+            res = XorCrypt::decrypt_file(file_name, dest_file_name, key, cli);
+
+            auto time_end = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - begin).count();
+            CLIProgressIndicator::print_status("Time taken = " + std::to_string(time_end) + " [ms]");
+        } catch (std::exception &e) {
+            std::cout << "Unknown error occurred\n";
+            std::cout << e.what() << "\n";
+            return 1;
+        }
+    }
+    std::cout << (res ? (mode ? "Encryption complete -> " + dest_file_name : "Decryption complete -> " + dest_file_name) : (mode ? "Encryption failed" : "Decryption failed")) << "\n";
+    return 0;
+}
+
 int main(int argc, char *argv[]) {
-    CLI *cli = new CLI();
     char *m_val = nullptr, *f_val = nullptr;
     opterr = 0;
 
@@ -62,5 +108,5 @@ int main(int argc, char *argv[]) {
     std::cout << "Enter the key: ";
     std::cin >> key;
 
-    return cli->exec_cli(mode, file_name, key);
+    return exec_cli(mode, file_name, key);
 }
