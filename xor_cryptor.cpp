@@ -303,8 +303,10 @@ bool XorCrypt::process_file(std::string &src_path, std::string &dest_path, std::
     for (auto &i: key) cipher_key->push_back(reinterpret_cast<bit &>(i));
 
     auto *input = new std::vector<char>();
-    input->reserve(std::filesystem::file_size(src_path));
-    input->assign((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    file.seekg(0, std::ios::end);
+    input->resize(file.tellg());
+    file.seekg(0, std::ios::beg);
+    file.read(&(*input)[0], int64_t(input->size()));
     file.close();
     CLIProgressIndicator::print_status("Size: " + std::to_string(input->size()) + " bytes");
 
@@ -315,11 +317,9 @@ bool XorCrypt::process_file(std::string &src_path, std::string &dest_path, std::
 
     if (res->error) return false;
     cli_interface->set_status("Writing file", 0);
-    for (auto &i: res->data) {
-        output_file.put(reinterpret_cast<char &>(i));
-    }
-    delete res;
+    output_file.write((char *) &res->data[0], int64_t(res->data.size()));
     output_file.close();
+    delete res;
     return !file.is_open() && !output_file.is_open();
 }
 
