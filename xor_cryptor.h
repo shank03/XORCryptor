@@ -24,15 +24,91 @@ class XorCrypt {
 
     typedef unsigned char bit;
 
-    struct CipherData;
+    struct CipherData {
+        std::vector<bit> data;
+        bool error;
 
-    struct ByteOrderInfo;
+        explicit CipherData() : data(), error(false) {}
 
-    struct BitStream;
+        explicit CipherData(bool er) : data(), error(er) {}
+
+        void extract_string(std::string *dest) const {
+            for (auto i: data) dest->push_back(reinterpret_cast<char &>(i));
+        }
+    };
+
+    struct ByteOrderInfo {
+        bit lv, rv;
+
+        ByteOrderInfo() : lv(0), rv(0) {}
+
+        void extract_order(bit value) {
+            lv = value >> 4, rv = value << 4;
+            rv >>= 4;
+        }
+
+        ~ByteOrderInfo() = default;
+    };
+
+    struct BitStream {
+        int byte_length;
+        std::vector<uint64_t> *bit_stream;
+
+        explicit BitStream(uint64_t value) : byte_length(0), bit_stream(nullptr) {
+            if (value == 0) {
+                byte_length = 1;
+                bit_stream = new std::vector<uint64_t>(2, 0);
+                return;
+            }
+
+            bit_stream = new std::vector<uint64_t>(8, value);
+            int i;
+            for (i = 0; i < 8; i++) {
+                int shift = (i + 1) * 8;
+                (*bit_stream)[i] <<= (64 - shift);
+                (*bit_stream)[i] >>= 56;
+            }
+            for (i = 7; i >= 0 && (*bit_stream)[i] == 0;) i--;
+            byte_length = i + 1;
+        }
+
+        void write_to_stream(std::vector<bit> *stream) const {
+            for (int i = byte_length - 1; i >= 0; i--) stream->push_back((*bit_stream)[i]);
+        }
+
+        ~BitStream() {
+            delete bit_stream;
+        }
+    };
 
     struct Node;
 
-    struct Byte;
+    struct Byte {
+        bit val;
+        uint64_t idx, size, exp_idx;
+        std::vector<bit> *stream;
+        std::vector<uint64_t> *exceptions;
+
+        explicit Byte(int val) : val(val), idx(0), size(0), exp_idx(0),
+                                 stream(new std::vector<bit>()), exceptions(nullptr) {}
+
+        ~Byte() {
+            delete stream;
+            delete exceptions;
+        }
+    };
+
+    struct Node {
+        bit val;
+        Byte *next;
+
+        Node() : val(0), next(nullptr) {}
+
+        void reset() {
+            val = 0;
+            next = nullptr;
+        }
+    };
 
     static void write_node_property(std::vector<bit> *stream, bit parent, uint64_t value);
 
