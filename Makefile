@@ -19,7 +19,11 @@ INC := -I.
 
 BIN_DIR := $(CURDIR)/bin
 BUILD_DIR := $(CURDIR)/build
-OUTPUT_EXEC := $(CURDIR)/bin/xor_cryptor
+OUTPUT_EXEC := $(BIN_DIR)/xor_cryptor
+
+ifneq ($(OS),Linux)
+	OUTPUT_EXEC := $(BIN_DIR)/xor_cryptor.exe
+endif
 
 all: $(OUTPUT_EXEC)
 
@@ -27,7 +31,7 @@ $(OUTPUT_EXEC): $(BUILD_DIR)/main.o $(BUILD_DIR)/cli.o $(BUILD_DIR)/xor_cryptor.
 	$(shell if [ ! -d "$(BIN_DIR)" ]; then\
 	    mkdir "$(BIN_DIR)";\
 	fi)
-	@echo "Linking $^ $(ROOT_DIR)"; $(CC) $^ -o $(OUTPUT_EXEC) $(LIB)
+	@echo "Linking $^"; $(CC) $^ -o $(OUTPUT_EXEC) $(LIB)
 	@echo "Executable created at $(OUTPUT_EXEC)";
 
 $(BUILD_DIR)/%.o: %.cpp
