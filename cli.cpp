@@ -9,7 +9,6 @@ void CLIProgressIndicator::start_progress() {
             if (idx == (int) progress_indicator.size()) idx = 0;
 
             int len = 0;
-            std::cout.flush();
             std::cout << std::string(last_len, ' ') << "\r";
             std::cout.flush();
             std::cout << mPreIndicatorText << " " << progress_indicator[idx++];
@@ -22,6 +21,7 @@ void CLIProgressIndicator::start_progress() {
                 len += 20;
             }
             last_len = len;
+            std::cout.flush();
             std::cout << "\r";
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
