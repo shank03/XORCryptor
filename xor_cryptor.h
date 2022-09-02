@@ -116,9 +116,9 @@ class XorCrypt {
 
     static Byte *get_next_valid_parent(std::vector<Byte *> *unique_byte_set, Byte *pByte, bit next_parent);
 
-    static CipherData *encrypt_bytes(std::vector<bit> *input, uint64_t length, std::vector<bit> *key, CLIProgressIndicator *cli_interface);
+    static CipherData *encrypt_bytes(const bit *input, uint64_t length, const bit *key, uint64_t k_len, CLIProgressIndicator *cli_interface);
 
-    static CipherData *decrypt_bytes(std::vector<bit> *input, uint64_t length, std::vector<bit> *key, CLIProgressIndicator *cli_interface);
+    static CipherData *decrypt_bytes(const bit *input, uint64_t length, const bit *key, uint64_t k_len, CLIProgressIndicator *cli_interface);
 
     static bool process_file(std::string &src_path, std::string &dest_path, std::string &key, bool to_encrypt, CLIProgressIndicator *cli_interface);
 
