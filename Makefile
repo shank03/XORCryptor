@@ -19,20 +19,28 @@ INC := -I.
 
 BIN_DIR := $(CURDIR)/bin
 BUILD_DIR := $(CURDIR)/build
-OUTPUT_EXEC := $(BIN_DIR)/xor_cryptor
+TARGET := $(BIN_DIR)/xor_cryptor
 
-ifneq ($(OS),Linux)
-	OUTPUT_EXEC := $(BIN_DIR)/xor_cryptor.exe
+ifneq ($(shell uname),Linux)
+	TARGET := $(BIN_DIR)/xor_cryptor.exe
 endif
 
-all: $(OUTPUT_EXEC)
+all: $(TARGET)
 
-$(OUTPUT_EXEC): $(BUILD_DIR)/main.o $(BUILD_DIR)/cli.o $(BUILD_DIR)/xor_cryptor.o
+ifeq ($(shell uname),Linux)
+install: all
+	@echo "Installing"; sudo cp $(TARGET) /usr/bin
+
+uninstall:
+	sudo rm -rf /usr/bin/xor_cryptor
+endif
+
+$(TARGET): $(BUILD_DIR)/main.o $(BUILD_DIR)/cli.o $(BUILD_DIR)/xor_cryptor.o
 	$(shell if [ ! -d "$(BIN_DIR)" ]; then\
 	    mkdir "$(BIN_DIR)";\
 	fi)
-	@echo "Linking $^"; $(CC) $^ -o $(OUTPUT_EXEC) $(LIB)
-	@echo "Executable created at $(OUTPUT_EXEC)";
+	@echo "Linking $^"; $(CC) $^ -o $(TARGET) $(LIB)
+	@echo "Executable created at $(TARGET)";
 
 $(BUILD_DIR)/%.o: %.cpp
 	$(shell if [ ! -d "$(BUILD_DIR)" ]; then\
@@ -45,4 +53,4 @@ $(BUILD_DIR)/cli.o: cli.cpp cli.h
 $(BUILD_DIR)/main.o: main.cpp
 
 clean:
-	@echo "Cleaning"; rm -rf $(BUILD_DIR)/*.o $(OUTPUT_EXEC)
+	@echo "Cleaning"; rm -rf $(BUILD_DIR)/*.o $(TARGET)
