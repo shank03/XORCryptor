@@ -305,17 +305,17 @@ bool XorCrypt::process_file(std::string &src_path, std::string &dest_path, std::
     auto *cipher_key = new std::vector<bit>();
     for (auto &i: key) cipher_key->push_back(reinterpret_cast<bit &>(i));
 
-    auto *input = new std::vector<char>();
+    auto *input = new std::vector<bit>();
     file.seekg(0, std::ios::end);
     input->resize(file.tellg());
     file.seekg(0, std::ios::beg);
-    file.read(&(*input)[0], int64_t(input->size()));
+    file.read((char *) &(*input)[0], int64_t(input->size()));
     file.close();
     CLIProgressIndicator::print_status("Size: " + std::to_string(input->size()) + " bytes");
 
     CipherData *res = to_encrypt ?
-                      encrypt_bytes(reinterpret_cast<std::vector<bit> *>(input), input->size(), cipher_key, cli_interface) :
-                      decrypt_bytes(reinterpret_cast<std::vector<bit> *>(input), input->size(), cipher_key, cli_interface);
+                      encrypt_bytes(input, input->size(), cipher_key, cli_interface) :
+                      decrypt_bytes(input, input->size(), cipher_key, cli_interface);
     delete input;
 
     if (res->error) return false;
@@ -330,7 +330,9 @@ XorCrypt::CipherData *XorCrypt::process_string(std::string &str, std::string &ke
     auto *input = new std::vector<bit>(), *cipher_key = new std::vector<bit>();
     for (auto &i: str) input->push_back(reinterpret_cast<bit &>(i));
     for (auto &i: key) cipher_key->push_back(reinterpret_cast<bit &>(i));
-    return to_encrypt ? encrypt_bytes(input, input->size(), cipher_key, cli_interface) : decrypt_bytes(input, input->size(), cipher_key, cli_interface);
+    return to_encrypt ?
+           encrypt_bytes(input, input->size(), cipher_key, cli_interface) :
+           decrypt_bytes(input, input->size(), cipher_key, cli_interface);
 }
 
 XorCrypt::CipherData *XorCrypt::encrypt_string(std::string &str, std::string &key, CLIProgressIndicator *cli_interface) {

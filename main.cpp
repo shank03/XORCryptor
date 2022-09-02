@@ -2,7 +2,6 @@
 #include "xor_cryptor.h"
 #include <cstring>
 #include <iostream>
-#include <sys/stat.h>
 #include <unistd.h>
 
 void print_help() {
@@ -11,12 +10,6 @@ void print_help() {
     std::cout << "Parameters:\n";
     std::cout << "\t-m <mode> - mode is either 'e' (encrypt) or 'd' (decrypt)\n";
     std::cout << "\t-f <file_name> - Encrypts/Decrypts only the file mentioned.\n";
-}
-
-bool file_exists(const char *name) {
-    struct stat buffer{};
-    int res = stat(name, &buffer);
-    return res == 0 && S_ISREG(buffer.st_mode);
 }
 
 int exec_cli(int mode, std::string &file_name, std::string &key) {
@@ -97,10 +90,13 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    if (!file_exists(f_val)) {
+    std::ifstream file(f_val);
+    if (file.fail()) {
         std::cout << "File doesn't exists\n";
+        file.close();
         return 1;
     }
+    file.close();
 
     std::string file_name = std::string(f_val), key;
     std::cout << "Enter the key: ";
