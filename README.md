@@ -1,46 +1,48 @@
 # XORCryptor
 
-For C++
+Encrypts or decrypts the text or file using XOR bitwise operation.
+
+### Installing CLI
+
+```shell
+git clone https://github.com/shank03/XORCryptor.git -b cli
+cd XORCryptor
+sudo make install
+```
 
 ### Usage
 
-- Encrypting normal text
-    ```c++
-    #include <iostream>
-    #include "xor-cryptor.hpp"
+It will ask for key everytime you encrypt or decrypt some file
 
-    int main() {
-        std::string text, key;  // Take input
+```text
+xor_cryptor -h # help
+xor_cryptor -m e -f info.txt    # encrypts the info.txt
+xor_cryptor -m d -f info.txt.xor    # decrypts the info.txt.xor
+```
 
-        // Encrypt
-        XorCrypt::CipherData *output = XorCrypt::encrypt_string(text, key);
+### How CLI works
 
-        if (output->err) {
-            // Handle error
-            std::cout << "Error: " << *output->err << "\n";
-        } else {
-            string encrypted;
-            output->extract_string(&encrypted);
-            std::cout << "Encrypted: " << encrypted << "\n";
-        }
+Let's say we have:
 
-        // Decrypt
-        std::string encryptedText;    // Take input
-        XorCrypt::CipherData *output_dec = XorCrypt::decrypt_string(encryptedText, key);
+```text
+random_folder
+    `- info.txt
+```
 
-        if (output_dec->err) {
-            // Handle error
-            std::cout << "Error: " << *output_dec->err << "\n";
-        } else {
-            string decrypted;
-            output_dec->extract_string(&decrypted);
-            std::cout << "Decrypted: " << decrypted << "\n";
-        }
-        return 0;
-    }
-    ```
+And we run `xor_cryptor -m e -f info.txt`, now we'll have:
 
-### Special Thanks
+```text
+random_folder
+    `- info.txt
+    `- info.txt.xor
+```
 
-**Ilya Polishchuk ([effolkronium](https://github.com/effolkronium))**
-for [C++ random library](https://github.com/effolkronium/random)
+If we are to decrypt this `info.txt.xor`,
+
+we'll run `xor_cryptor -m d -f info.txt.xor`
+
+This will decrypt the `info.txt.xor` into `info.txt` (i.e. overwriting contents of `info.txt`)
+
+### NOTE !
+
+> DO NOT FORGET THE KEY YOU GAVE FOR ENCRYPTION
