@@ -32,16 +32,16 @@ void XorCrypt::write_node_property(std::vector<bit> *stream, bit parent, uint64_
     delete pBS;
 }
 
-void XorCrypt::insert_node(std::vector<Byte *> *st, std::vector<bit> *exceptions, bit parent, Node *node) {
+void XorCrypt::insert_node(std::vector<Byte *> *unique_byte_set, std::vector<bit> *exceptions, bit parent, Node *node) {
     bit data = node->val;
     data <<= 4;
     if (node->next) {
         bit next_parent = node->next->val;
-        if (next_parent == 0) write_node_property(exceptions, parent, (*st)[parent]->idx);
+        if (next_parent == 0) write_node_property(exceptions, parent, (*unique_byte_set)[parent]->idx);
         data |= next_parent;
     }
-    (*st)[parent]->idx++;
-    (*st)[parent]->stream->push_back(data);
+    (*unique_byte_set)[parent]->idx++;
+    (*unique_byte_set)[parent]->stream->push_back(data);
 }
 
 XorCrypt::Byte *XorCrypt::get_next_valid_parent(std::vector<XorCrypt::Byte *> *unique_byte_set, Byte *pByte, bit next_parent) {
@@ -64,7 +64,9 @@ XorCrypt::CipherData *XorCrypt::encrypt_bytes(std::vector<bit> *input, uint64_t 
         auto pCipherData = new CipherData();
         uint64_t k_idx = 0;
 
-        auto *unique_byte_set = new std::vector<Byte *>(16, nullptr);
+        auto *unique_byte_set = new std::vector<Byte *>(16, nullptr),
+                *byte_sets = new std::vector<Byte *>(16, nullptr);
+        for (bit i = 0; i < 16; i++) (*byte_sets)[i] = new Byte(i);
         auto *exceptions = new std::vector<bit>, *byte_order = new std::vector<bit>();
 
         Node *pNode = new Node();
@@ -77,7 +79,7 @@ XorCrypt::CipherData *XorCrypt::encrypt_bytes(std::vector<bit> *input, uint64_t 
             data >>= 4;
 
             if ((*unique_byte_set)[parent] == nullptr) {
-                (*unique_byte_set)[parent] = new Byte(parent);
+                (*unique_byte_set)[parent] = (*byte_sets)[parent];
                 byte_order->push_back(parent);
             }
             pNode->val = data;
@@ -86,7 +88,7 @@ XorCrypt::CipherData *XorCrypt::encrypt_bytes(std::vector<bit> *input, uint64_t 
             if (itr != length - 1) {
                 bit next_parent = (*input)[itr + 1] >> 4;
                 if ((*unique_byte_set)[next_parent] == nullptr) {
-                    (*unique_byte_set)[next_parent] = new Byte(next_parent);
+                    (*unique_byte_set)[next_parent] = (*byte_sets)[next_parent];
                     byte_order->push_back(next_parent);
                 }
                 if (parent != next_parent) pNode->next = (*unique_byte_set)[next_parent];

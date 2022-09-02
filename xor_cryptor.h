@@ -112,7 +112,7 @@ class XorCrypt {
 
     static void write_node_property(std::vector<bit> *stream, bit parent, uint64_t value);
 
-    static void insert_node(std::vector<Byte *> *st, std::vector<bit> *exceptions, bit parent, Node *node);
+    static void insert_node(std::vector<Byte *> *unique_byte_set, std::vector<bit> *exceptions, bit parent, Node *node);
 
     static Byte *get_next_valid_parent(std::vector<Byte *> *unique_byte_set, Byte *pByte, bit next_parent);
 
