@@ -2,6 +2,9 @@
 
 Encrypts or decrypts the text or file using XOR bitwise operation.
 
+The bytes are mapped and then XORed in a way that any other key
+could attempt to decrypt it but not get the correct result.
+
 ### Installing CLI
 
 ```shell
