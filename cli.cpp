@@ -15,7 +15,9 @@ void CLIProgressIndicator::start_progress() {
             std::cout << mPreIndicatorText << " " << progress_indicator[idx++];
             len += (int) mPreIndicatorText.length() + 3;
             if (mProgress != nullptr && mTotal != 0) {
-                float percentage = (*mProgress * 100.0) / mTotal;
+                long double upper = *mProgress;
+                upper = std::min(upper, mTotal);
+                long double percentage = (upper * 100.0) / mTotal;
                 std::cout << " [ " << std::fixed << std::setprecision(2) << percentage << " / 100 ]";
                 len += 20;
             }
