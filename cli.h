@@ -10,16 +10,20 @@
 
 class CLIProgressIndicator {
     std::string mPreIndicatorText;
-    long double mProgress = 0, mTotal = 0;
+    uint64_t *mProgress = nullptr;
+    long double mTotal = 0;
+    bool mRunIndicator = false;
 
 public:
     void start_progress();
+
+    void stop_progress();
 
     static void print_status(const std::string &stat);
 
     void set_status(std::string stat, long double total);
 
-    void set_progress(long double progress);
+    void catch_progress(uint64_t *progress);
 };
 
 
