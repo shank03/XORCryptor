@@ -21,13 +21,15 @@ BIN_DIR := $(CURDIR)/bin
 BUILD_DIR := $(CURDIR)/build
 TARGET := $(BIN_DIR)/xor_cryptor
 
-ifneq ($(shell uname),Linux)
+IS_WIN := false
+ifeq ($(OS),Windows_NT)
 	TARGET := $(BIN_DIR)/xor_cryptor.exe
+	IS_WIN := true
 endif
 
 all: $(TARGET)
 
-ifeq ($(shell uname),Linux)
+ifeq ($(IS_WIN),false)
 install: all
 	@echo "Installing"; sudo cp $(TARGET) /usr/bin
 
@@ -39,18 +41,17 @@ $(TARGET): $(BUILD_DIR)/main.o $(BUILD_DIR)/cli.o $(BUILD_DIR)/xor_cryptor.o
 	$(shell if [ ! -d "$(BIN_DIR)" ]; then\
 	    mkdir "$(BIN_DIR)";\
 	fi)
-	@echo "Linking $^"; $(CC) $^ -o $(TARGET) $(LIB)
-	@echo "Executable created at $(TARGET)";
+	$(CC) $^ -o $(TARGET) $(LIB)
 
 $(BUILD_DIR)/%.o: %.cpp
 	$(shell if [ ! -d "$(BUILD_DIR)" ]; then\
     	mkdir "$(BUILD_DIR)";\
     fi)
-	@echo "Compiling $<"; $(CC) $(CFLAGS) $(INC) -c -o $@ $<
+	$(CC) $(CFLAGS) $(INC) -c -o $@ $<
 
 $(BUILD_DIR)/xor_cryptor.o: xor_cryptor.cpp xor_cryptor.h
 $(BUILD_DIR)/cli.o: cli.cpp cli.h
 $(BUILD_DIR)/main.o: main.cpp
 
 clean:
-	@echo "Cleaning"; rm -rf $(BUILD_DIR)/*.o $(TARGET)
+	rm -rf $(BUILD_DIR)/*.o $(TARGET)
