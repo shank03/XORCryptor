@@ -70,10 +70,10 @@ int main(int argc, char *argv[]) {
     char *m_val = nullptr, *f_val = nullptr;
     opterr = 0;
 
-    if (argc == 2 &&
-        (strcmp(argv[1], "-h") == 0 ||
-         strcmp(argv[1], "-help") == 0 ||
-         strcmp(argv[1], "--help") == 0)) {
+    if (argc == 1 || (argc == 2 &&
+                      (strcmp(argv[1], "-h") == 0 ||
+                       strcmp(argv[1], "-help") == 0 ||
+                       strcmp(argv[1], "--help") == 0))) {
         print_help();
         return 0;
     }
