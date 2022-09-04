@@ -3,7 +3,7 @@
 void CLIProgressIndicator::start_progress() {
     mRunIndicator = true;
     std::thread([this]() -> void {
-        std::vector<std::string> progress_indicator{"-", "\\", "|", "/", "-"};
+        std::vector<std::string> progress_indicator{"-", "\\", "|", "/"};
         int idx = 0, last_len = (int) mPreIndicatorText.length();
         while (mRunIndicator) {
             if (idx == (int) progress_indicator.size()) idx = 0;
