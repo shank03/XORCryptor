@@ -102,6 +102,9 @@ private:
         }
     };
 
+    BitStream *mBitStream;
+    std::vector<Byte *> *mByteSets;
+
     void write_node_property(std::vector<bit> *stream, bit parent, uint64_t value) const;
 
     void insert_node(std::vector<Byte *> *unique_byte_set, std::vector<bit> *exceptions, bit parent, Node *node) const;
@@ -115,9 +118,6 @@ private:
     CipherData *process_string(std::string &str, std::string &key, bool to_encrypt, CLIProgressIndicator *cli_interface);
 
 public:
-    BitStream *mBitStream;
-    std::vector<Byte *> *mByteSets;
-
     XorCrypt() {
         mBitStream = new BitStream();
         mByteSets = new std::vector<Byte *>(0xFF, nullptr);
