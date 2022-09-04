@@ -37,36 +37,25 @@ class XorCrypt {
         }
     };
 
-    struct ByteOrderInfo {
-        bit lv, rv;
-
-        ByteOrderInfo() : lv(0), rv(0) {}
-
-        void extract_order(bit value) {
-            lv = value >> 4, rv = value << 4;
-            rv >>= 4;
-        }
-
-        ~ByteOrderInfo() = default;
-    };
-
     struct BitStream {
         int byte_length;
         std::vector<uint64_t> *bit_stream;
 
-        explicit BitStream(uint64_t value) : byte_length(0), bit_stream(nullptr) {
+        BitStream() : byte_length(0), bit_stream(new std::vector<uint64_t>(8)) {}
+
+        void to_bit_stream(uint64_t value) {
             if (value == 0) {
                 byte_length = 1;
-                bit_stream = new std::vector<uint64_t>(2, 0);
+                std::fill(bit_stream->begin(), bit_stream->end(), 0);
                 return;
             }
 
-            bit_stream = new std::vector<uint64_t>(8, value);
+            std::fill(bit_stream->begin(), bit_stream->end(), value);
             int i;
             for (i = 0; i < 8; i++) {
                 int shift = (i + 1) * 8;
-                (*bit_stream)[i] <<= (64 - shift);
-                (*bit_stream)[i] >>= 56;
+                (*bit_stream)[i] <<= (0x40 - shift);
+                (*bit_stream)[i] >>= 0x38;
             }
             for (i = 7; i >= 0 && (*bit_stream)[i] == 0;) i--;
             byte_length = i + 1;
@@ -74,12 +63,15 @@ class XorCrypt {
 
         void write_to_stream(std::vector<bit> *stream) const {
             for (int i = byte_length - 1; i >= 0; i--) stream->push_back((*bit_stream)[i]);
+            std::fill(bit_stream->begin(), bit_stream->end(), 0);
         }
 
         ~BitStream() {
             delete bit_stream;
         }
     };
+
+    inline static BitStream *mBitStream = nullptr;
 
     struct Node;
 
@@ -110,11 +102,11 @@ class XorCrypt {
         }
     };
 
+    static void extract_order(bit value, bit *lv, bit *rv);
+
     static void write_node_property(std::vector<bit> *stream, bit parent, uint64_t value);
 
     static void insert_node(std::vector<Byte *> *unique_byte_set, std::vector<bit> *exceptions, bit parent, Node *node);
-
-    static Byte *get_next_valid_parent(std::vector<Byte *> *unique_byte_set, Byte *pByte, bit next_parent);
 
     static CipherData *encrypt_bytes(const bit *input, uint64_t length, const bit *key, uint64_t k_len, CLIProgressIndicator *cli_interface);
 
