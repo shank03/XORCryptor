@@ -18,12 +18,14 @@
 #include <vector>
 #include <fstream>
 #include <filesystem>
+#include <iostream>
 #include "cli.h"
 
-class XorCrypt {
+struct XorCrypt {
 
     typedef unsigned char bit;
 
+private:
     struct CipherData {
         std::vector<bit> data;
         bool error;
@@ -71,8 +73,6 @@ class XorCrypt {
         }
     };
 
-    inline static BitStream *mBitStream = nullptr;
-
     struct Node;
 
     struct Byte {
@@ -102,26 +102,40 @@ class XorCrypt {
         }
     };
 
-    static void write_node_property(std::vector<bit> *stream, bit parent, uint64_t value);
+    void write_node_property(std::vector<bit> *stream, bit parent, uint64_t value) const;
 
-    static void insert_node(std::vector<Byte *> *unique_byte_set, std::vector<bit> *exceptions, bit parent, Node *node);
+    void insert_node(std::vector<Byte *> *unique_byte_set, std::vector<bit> *exceptions, bit parent, Node *node) const;
 
-    static CipherData *encrypt_bytes(const bit *input, uint64_t length, const bit *key, uint64_t k_len, CLIProgressIndicator *cli_interface);
+    CipherData *encrypt_bytes(const bit *input, uint64_t length, const bit *key, uint64_t k_len, CLIProgressIndicator *cli_interface) const;
 
-    static CipherData *decrypt_bytes(const bit *input, uint64_t length, const bit *key, uint64_t k_len, CLIProgressIndicator *cli_interface);
+    CipherData *decrypt_bytes(const bit *input, uint64_t length, const bit *key, uint64_t k_len, CLIProgressIndicator *cli_interface) const;
 
-    static bool process_file(std::string &src_path, std::string &dest_path, std::string &key, bool to_encrypt, CLIProgressIndicator *cli_interface);
+    bool process_file(std::string &src_path, std::string &dest_path, std::string &key, bool to_encrypt, CLIProgressIndicator *cli_interface);
 
-    static CipherData *process_string(std::string &str, std::string &key, bool to_encrypt, CLIProgressIndicator *cli_interface);
+    CipherData *process_string(std::string &str, std::string &key, bool to_encrypt, CLIProgressIndicator *cli_interface);
 
 public:
-    static CipherData *encrypt_string(std::string &str, std::string &key, CLIProgressIndicator *cli_interface);
+    BitStream *mBitStream;
+    std::vector<Byte *> *mByteSets;
 
-    static bool encrypt_file(std::string &src_path, std::string &dest_path, std::string &key, CLIProgressIndicator *cli_interface);
+    XorCrypt() {
+        mBitStream = new BitStream();
+        mByteSets = new std::vector<Byte *>(0xFF, nullptr);
+        for (bit i = 0; i < 0xFF; i++) (*mByteSets)[i] = new Byte(i);
+    }
 
-    static CipherData *decrypt_string(std::string &str, std::string &key, CLIProgressIndicator *cli_interface);
+    CipherData *encrypt_string(std::string &str, std::string &key, CLIProgressIndicator *cli_interface);
 
-    static bool decrypt_file(std::string &src_path, std::string &dest_path, std::string &key, CLIProgressIndicator *cli_interface);
+    bool encrypt_file(std::string &src_path, std::string &dest_path, std::string &key, CLIProgressIndicator *cli_interface);
+
+    CipherData *decrypt_string(std::string &str, std::string &key, CLIProgressIndicator *cli_interface);
+
+    bool decrypt_file(std::string &src_path, std::string &dest_path, std::string &key, CLIProgressIndicator *cli_interface);
+
+    ~XorCrypt() {
+        delete mByteSets;
+        delete mBitStream;
+    }
 };
 
 #endif //XOR_CRYPTOR_H

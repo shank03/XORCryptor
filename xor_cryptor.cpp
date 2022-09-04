@@ -23,7 +23,7 @@
  * date: 22-Aug-2022
  */
 
-void XorCrypt::write_node_property(std::vector<bit> *stream, bit parent, uint64_t value) {
+void XorCrypt::write_node_property(std::vector<bit> *stream, bit parent, uint64_t value) const {
     mBitStream->to_bit_stream(value);
     parent = (parent << 4) | reinterpret_cast<bit &>(mBitStream->byte_length);
 
@@ -31,7 +31,7 @@ void XorCrypt::write_node_property(std::vector<bit> *stream, bit parent, uint64_
     mBitStream->write_to_stream(stream);
 }
 
-void XorCrypt::insert_node(std::vector<Byte *> *unique_byte_set, std::vector<bit> *exceptions, bit parent, Node *node) {
+void XorCrypt::insert_node(std::vector<Byte *> *unique_byte_set, std::vector<bit> *exceptions, bit parent, Node *node) const {
     bit data = (node->val << 4);
     if (node->next) {
         bit next_parent = node->next->val;
@@ -42,16 +42,13 @@ void XorCrypt::insert_node(std::vector<Byte *> *unique_byte_set, std::vector<bit
     (*unique_byte_set)[parent]->stream->push_back(data);
 }
 
-XorCrypt::CipherData *XorCrypt::encrypt_bytes(const bit *input, uint64_t length, const bit *key, uint64_t k_len, CLIProgressIndicator *cli_interface) {
+XorCrypt::CipherData *XorCrypt::encrypt_bytes(const bit *input, uint64_t length, const bit *key, uint64_t k_len, CLIProgressIndicator *cli_interface) const {
     try {
         CLIProgressIndicator::print_status("Started encryption");
         auto pCipherData = new CipherData();
         uint64_t k_idx = 0;
 
-        mBitStream = new BitStream();
-        auto *unique_byte_set = new std::vector<Byte *>(0xFF, nullptr),
-                *byte_sets = new std::vector<Byte *>(0xFF, nullptr);
-        for (bit i = 0; i < 16; i++) (*byte_sets)[i] = new Byte(i);
+        auto *unique_byte_set = new std::vector<Byte *>(0xFF, nullptr);
         auto *exceptions = new std::vector<bit>, *byte_order = new std::vector<bit>();
 
         Node *pNode = new Node();
@@ -62,15 +59,19 @@ XorCrypt::CipherData *XorCrypt::encrypt_bytes(const bit *input, uint64_t length,
             pNode->reset();
             bit parent = input[itr] >> 4, data = input[itr] & 0x0F;
 
-            if ((*unique_byte_set)[parent] == nullptr) byte_order->push_back(parent);
-            (*unique_byte_set)[parent] = (*byte_sets)[parent];
+            if ((*unique_byte_set)[parent] == nullptr) {
+                (*unique_byte_set)[parent] = (*mByteSets)[parent];
+                byte_order->push_back(parent);
+            }
             pNode->val = data;
             (*unique_byte_set)[parent]->size++;
 
             if (itr != length - 1) {
                 bit next_parent = input[itr + 1] >> 4;
-                if ((*unique_byte_set)[next_parent] == nullptr) byte_order->push_back(next_parent);
-                (*unique_byte_set)[next_parent] = (*byte_sets)[next_parent];
+                if ((*unique_byte_set)[next_parent] == nullptr) {
+                    (*unique_byte_set)[next_parent] = (*mByteSets)[next_parent];
+                    byte_order->push_back(next_parent);
+                }
                 if (parent != next_parent) pNode->next = (*unique_byte_set)[next_parent];
             }
             insert_node(unique_byte_set, exceptions, parent, pNode);
@@ -83,7 +84,6 @@ XorCrypt::CipherData *XorCrypt::encrypt_bytes(const bit *input, uint64_t length,
             Byte *pByte = (*unique_byte_set)[order];
             write_node_property(&pCipherData->data, pByte->val, pByte->size);
         }
-        delete mBitStream;
         itr = 0;
         for (; itr < byte_order->size(); itr++) {
             Byte *pByte = (*unique_byte_set)[(*byte_order)[itr]];
@@ -106,15 +106,13 @@ XorCrypt::CipherData *XorCrypt::encrypt_bytes(const bit *input, uint64_t length,
     }
 }
 
-XorCrypt::CipherData *XorCrypt::decrypt_bytes(const bit *input, uint64_t length, const bit *key, uint64_t k_len, CLIProgressIndicator *cli_interface) {
+XorCrypt::CipherData *XorCrypt::decrypt_bytes(const bit *input, uint64_t length, const bit *key, uint64_t k_len, CLIProgressIndicator *cli_interface) const {
     try {
         CLIProgressIndicator::print_status("Started decryption");
         uint64_t k_idx = 0;
         auto pCipherData = new CipherData();
 
-        auto *unique_byte_set = new std::vector<Byte *>(0xFF, nullptr),
-                *byte_sets = new std::vector<Byte *>(0xFF, nullptr);
-        for (bit i = 0; i < 16; i++) (*byte_sets)[i] = new Byte(i);
+        auto *unique_byte_set = new std::vector<Byte *>(0xFF, nullptr);
         auto *byte_order = new std::vector<bit>();
 
         uint64_t idx = 0, exception_partition = 0;
@@ -126,8 +124,10 @@ XorCrypt::CipherData *XorCrypt::decrypt_bytes(const bit *input, uint64_t length,
             uint64_t child_count = 0, bits_idx = idx + uint64_t(bits_length);
             while (idx < bits_idx) child_count = (child_count << 8) | uint64_t(input[idx++]);
 
-            if ((*unique_byte_set)[parent] == nullptr) byte_order->push_back(parent);
-            (*unique_byte_set)[parent] = (*byte_sets)[parent];
+            if ((*unique_byte_set)[parent] == nullptr) {
+                (*unique_byte_set)[parent] = (*mByteSets)[parent];
+                byte_order->push_back(parent);
+            }
             (*unique_byte_set)[parent]->size = child_count;
             exception_partition += child_count;
         }
