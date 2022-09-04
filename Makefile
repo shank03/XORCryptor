@@ -13,7 +13,7 @@
 #
 
 CC := g++
-CFLAGS := -Wall -Wextra -Werror -std=c++17 -O2 -D_GLIBCXX_ASSERTIONS
+CFLAGS := -Wall -Wextra -Werror -std=c++17 -O3 -D_GLIBCXX_ASSERTIONS
 LIB := -pthread
 INC := -I.
 
