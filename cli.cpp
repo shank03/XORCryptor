@@ -25,7 +25,6 @@ void CLIProgressIndicator::start_progress() {
             std::cout << "\r";
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
-        std::terminate();
     }).detach();
 }
 
