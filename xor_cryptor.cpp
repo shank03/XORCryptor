@@ -23,11 +23,6 @@
  * date: 22-Aug-2022
  */
 
-void XorCrypt::extract_order(bit value, bit *lv, bit *rv) {
-    (*lv) = value >> 4;
-    (*rv) = value & 0x0F;
-}
-
 void XorCrypt::write_node_property(std::vector<bit> *stream, bit parent, uint64_t value) {
     mBitStream->to_bit_stream(value);
     parent = (parent << 4) | reinterpret_cast<bit &>(mBitStream->byte_length);
@@ -65,8 +60,7 @@ XorCrypt::CipherData *XorCrypt::encrypt_bytes(const bit *input, uint64_t length,
         cli_interface->catch_progress(&itr);
         for (; itr < length; itr++) {
             pNode->reset();
-            bit parent = 0, data = 0;
-            extract_order(input[itr], &parent, &data);
+            bit parent = input[itr] >> 4, data = input[itr] & 0x0F;
 
             if ((*unique_byte_set)[parent] == nullptr) byte_order->push_back(parent);
             (*unique_byte_set)[parent] = (*byte_sets)[parent];
@@ -126,14 +120,12 @@ XorCrypt::CipherData *XorCrypt::decrypt_bytes(const bit *input, uint64_t length,
         uint64_t idx = 0, exception_partition = 0;
         bit parent_length = input[idx++];
         while (parent_length--) {
-            bit parent = 0, bits_length = 0;
-            extract_order(input[idx++], &parent, &bits_length);
+            bit parent = input[idx] >> 4;
+            bit bits_length = input[idx++] & 0x0F;
 
             uint64_t child_count = 0, bits_idx = idx + uint64_t(bits_length);
-            while (idx < bits_idx) {
-                child_count <<= 8;
-                child_count |= uint64_t(input[idx++]);
-            }
+            while (idx < bits_idx) child_count = (child_count << 8) | uint64_t(input[idx++]);
+
             if ((*unique_byte_set)[parent] == nullptr) byte_order->push_back(parent);
             (*unique_byte_set)[parent] = (*byte_sets)[parent];
             (*unique_byte_set)[parent]->size = child_count;
@@ -147,15 +139,12 @@ XorCrypt::CipherData *XorCrypt::decrypt_bytes(const bit *input, uint64_t length,
         cli_interface->catch_progress(&progress);
         while (idx < length) {
             progress++;
-            bit parent = 0, bits_length = 0;
-            extract_order(input[idx++], &parent, &bits_length);
+            bit parent = input[idx] >> 4;
+            bit bits_length = input[idx++] & 0x0F;
             uint64_t bits = uint64_t(bits_length) + idx;
 
             uint64_t node_idx = 0;
-            while (idx < bits) {
-                node_idx <<= 8;
-                node_idx |= input[idx++];
-            }
+            while (idx < bits) node_idx = (node_idx << 8) | input[idx++];
             if ((*unique_byte_set)[parent]->exceptions == nullptr) {
                 (*unique_byte_set)[parent]->exceptions = new std::vector<uint64_t>();
             }
@@ -185,8 +174,7 @@ XorCrypt::CipherData *XorCrypt::decrypt_bytes(const bit *input, uint64_t length,
             bit data = (*pByte->stream)[pByte->idx++];
             if (pByte->idx == pByte->size) delete pByte->stream;
 
-            bit val = 0, next_parent = 0;
-            extract_order(data, &val, &next_parent);
+            bit val = data >> 4, next_parent = data & 0x0F;
             data = pByte->val << 4;
             data |= val;
 

@@ -102,8 +102,6 @@ class XorCrypt {
         }
     };
 
-    static void extract_order(bit value, bit *lv, bit *rv);
-
     static void write_node_property(std::vector<bit> *stream, bit parent, uint64_t value);
 
     static void insert_node(std::vector<Byte *> *unique_byte_set, std::vector<bit> *exceptions, bit parent, Node *node);
