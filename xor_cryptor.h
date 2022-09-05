@@ -76,9 +76,7 @@ private:
             std::fill(bit_stream->begin(), bit_stream->end(), 0);
         }
 
-        ~BitStream() {
-            delete bit_stream;
-        }
+        ~BitStream() { delete bit_stream; }
     };
 
     struct Node;

@@ -106,14 +106,6 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    std::ifstream file(f_val);
-    if (file.fail()) {
-        std::cout << "File doesn't exists\n";
-        file.close();
-        return 1;
-    }
-    file.close();
-
     std::string file_name = std::string(f_val), key;
     std::cout << "Enter the key: ";
     std::cin >> key;

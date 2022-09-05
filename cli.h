@@ -6,9 +6,10 @@
 
 class CLIProgressIndicator {
     std::string mPreIndicatorText;
+    bool mRunIndicator = false;
+
     uint64_t *mProgress = nullptr;
     long double mTotal = 0;
-    bool mRunIndicator = false;
 
     std::thread *mProgressThread = nullptr;
 
