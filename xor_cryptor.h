@@ -63,9 +63,8 @@ private:
             std::fill(bit_stream->begin(), bit_stream->end(), value);
             int i;
             for (i = 0; i < 8; i++) {
-                int shift = (i + 1) * 8;
-                (*bit_stream)[i] <<= (0x40 - shift);
-                (*bit_stream)[i] >>= 0x38;
+                (*bit_stream)[i] >>= uint64_t(i * 8);
+                (*bit_stream)[i] &= uint64_t(0xFF);
             }
             for (i = 7; i >= 0 && (*bit_stream)[i] == 0;) i--;
             byte_length = i + 1;

@@ -23,7 +23,6 @@ struct Status : XorCrypt::StatusListener {
 
     void catch_progress(const std::string &status, uint64_t *progress_ptr, uint64_t total) override {
         progressIndicator->update_status(status);
-        progressIndicator->start_progress();
         progressIndicator->catch_progress(progress_ptr, total);
     }
 };
@@ -31,6 +30,7 @@ struct Status : XorCrypt::StatusListener {
 int exec_cli(int mode, std::string &file_name, std::string &key) {
     auto *cli = new CLIProgressIndicator();
     auto *status = new Status(cli);
+    cli->start_progress();
 
     std::string dest_file_name(file_name);
     bool res;

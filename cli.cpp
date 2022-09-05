@@ -33,12 +33,14 @@ void CLIProgressIndicator::start_progress() {
             std::cout << "\r";
             std::this_thread::sleep_for(std::chrono::milliseconds(150));
         }
+        if (mProgressThread != nullptr && mProgressThread->joinable()) mProgressThread->join();
+        mProgressThread = nullptr;
     });
     mProgressThread->detach();
 }
 
 void CLIProgressIndicator::print_status(const std::string &status) {
-    stop_progress();
+    mTotal = 0;
     std::cout << std::string(40, ' ') << "\r";
     std::cout.flush();
     std::cout << status << "\n";
@@ -54,8 +56,7 @@ void CLIProgressIndicator::catch_progress(uint64_t *progress, long double total)
 }
 
 void CLIProgressIndicator::stop_progress() {
-    mProgress = nullptr;
     mRunIndicator = false;
-    if (mProgressThread != nullptr && mProgressThread->joinable()) mProgressThread->join();
-    mProgressThread = nullptr;
+    mProgress = nullptr;
+    while (mProgressThread != nullptr);
 }

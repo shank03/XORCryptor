@@ -208,7 +208,7 @@ bool XorCrypt::process_file(std::string &src_path, std::string &dest_path, std::
     if (!file.is_open()) return false;
     if (!output_file.is_open()) return false;
 
-    print_status("Reading file");
+    catch_progress("Reading file", nullptr, 0);
     file.seekg(0, std::ios::end);
     auto input_length = file.tellg();
     bit *input = new bit[input_length];
@@ -217,7 +217,7 @@ bool XorCrypt::process_file(std::string &src_path, std::string &dest_path, std::
     file.read((char *) input, input_length);
     file.close();
 
-    print_status("Size: " + std::to_string(input_length) + " bytes");
+    print_status("File size: " + std::to_string(input_length) + " bytes");
 
     CipherData *res = to_encrypt
                       ? encrypt_bytes(input, input_length, reinterpret_cast<const bit *>(key.c_str()), key.length())
