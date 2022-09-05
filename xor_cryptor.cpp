@@ -50,7 +50,7 @@ XorCrypt::CipherData *XorCrypt::encrypt_bytes(const bit *input, uint64_t length,
         auto pCipherData = new CipherData();
         uint64_t k_idx = 0;
 
-        auto *unique_byte_set = new std::vector<Byte *>(0xFF, nullptr);
+        auto *unique_byte_set = new std::vector<Byte *>(0x10, nullptr);
         auto *exceptions = new std::vector<bit>, *byte_order = new std::vector<bit>();
 
         Node *pNode = new Node();
@@ -114,7 +114,7 @@ XorCrypt::CipherData *XorCrypt::decrypt_bytes(const bit *input, uint64_t length,
         uint64_t k_idx = 0;
         auto pCipherData = new CipherData();
 
-        auto *unique_byte_set = new std::vector<Byte *>(0xFF, nullptr);
+        auto *unique_byte_set = new std::vector<Byte *>(0x10, nullptr);
         auto *byte_order = new std::vector<bit>();
 
         uint64_t idx = 0, exception_partition = 0;

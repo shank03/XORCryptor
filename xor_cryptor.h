@@ -135,8 +135,8 @@ private:
 public:
     XorCrypt() {
         mBitStream = new BitStream();
-        mByteSets = new std::vector<Byte *>(0xFF, nullptr);
-        for (bit i = 0; i < 0xFF; i++) (*mByteSets)[i] = new Byte(i);
+        mByteSets = new std::vector<Byte *>(0x10, nullptr);
+        for (bit i = 0; i < 0x10; i++) (*mByteSets)[i] = new Byte(i);
     }
 
     CipherData *encrypt_string(std::string &str, std::string &key, StatusListener *listener = nullptr);
