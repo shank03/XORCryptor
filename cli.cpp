@@ -1,8 +1,9 @@
 #include "cli.h"
 
 void CLIProgressIndicator::start_progress() {
+    if (mProgressThread != nullptr) return;
     mRunIndicator = true;
-    std::thread([this]() -> void {
+    mProgressThread = new std::thread([this]() -> void {
         std::vector<std::string> progress_indicator{"-", "\\", "|", "/"};
         int idx = 0, last_len = (int) mPreIndicatorText.length();
         while (mRunIndicator) {
@@ -23,25 +24,31 @@ void CLIProgressIndicator::start_progress() {
             last_len = len;
             std::cout.flush();
             std::cout << "\r";
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            std::this_thread::sleep_for(std::chrono::milliseconds(150));
         }
-    }).detach();
+    });
+    mProgressThread->detach();
 }
 
-void CLIProgressIndicator::print_status(const std::string &stat) {
-    std::cout << stat << "\n";
+void CLIProgressIndicator::print_status(const std::string &status) {
+    stop_progress();
+    std::cout << std::string(40, ' ') << "\r";
+    std::cout.flush();
+    std::cout << status << "\n";
 }
 
-void CLIProgressIndicator::set_status(std::string stat, long double t) {
-    mPreIndicatorText = std::move(stat);
-    mTotal = t;
+void CLIProgressIndicator::update_status(const std::string &stat) {
+    mPreIndicatorText = stat;
 }
 
-void CLIProgressIndicator::catch_progress(uint64_t *progress) {
+void CLIProgressIndicator::catch_progress(uint64_t *progress, long double total) {
     mProgress = progress;
+    mTotal = total;
 }
 
 void CLIProgressIndicator::stop_progress() {
     mProgress = nullptr;
     mRunIndicator = false;
+    if (mProgressThread != nullptr && mProgressThread->joinable()) mProgressThread->join();
+    mProgressThread = nullptr;
 }

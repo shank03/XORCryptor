@@ -14,16 +14,18 @@ class CLIProgressIndicator {
     long double mTotal = 0;
     bool mRunIndicator = false;
 
+    std::thread *mProgressThread = nullptr;
+
 public:
     void start_progress();
 
     void stop_progress();
 
-    static void print_status(const std::string &stat);
+    void print_status(const std::string &status);
 
-    void set_status(std::string stat, long double total);
+    void update_status(const std::string &stat);
 
-    void catch_progress(uint64_t *progress);
+    void catch_progress(uint64_t *progress, long double total);
 };
 
 

@@ -23,6 +23,8 @@
  * date: 22-Aug-2022
  */
 
+XorCrypt::StatusListener::~StatusListener() = default;
+
 void XorCrypt::write_node_property(std::vector<bit> *stream, bit parent, uint64_t value) const {
     mBitStream->to_bit_stream(value);
     parent = (parent << 4) | reinterpret_cast<bit &>(mBitStream->byte_length);
@@ -42,9 +44,9 @@ void XorCrypt::insert_node(std::vector<Byte *> *unique_byte_set, std::vector<bit
     (*unique_byte_set)[parent]->stream->push_back(data);
 }
 
-XorCrypt::CipherData *XorCrypt::encrypt_bytes(const bit *input, uint64_t length, const bit *key, uint64_t k_len, CLIProgressIndicator *cli_interface) const {
+XorCrypt::CipherData *XorCrypt::encrypt_bytes(const bit *input, uint64_t length, const bit *key, uint64_t k_len) const {
     try {
-        CLIProgressIndicator::print_status("Started encryption");
+        print_status("Started encryption");
         auto pCipherData = new CipherData();
         uint64_t k_idx = 0;
 
@@ -52,9 +54,8 @@ XorCrypt::CipherData *XorCrypt::encrypt_bytes(const bit *input, uint64_t length,
         auto *exceptions = new std::vector<bit>, *byte_order = new std::vector<bit>();
 
         Node *pNode = new Node();
-        cli_interface->set_status("Mapping bytes", length);
         uint64_t itr = 0;
-        cli_interface->catch_progress(&itr);
+        catch_progress("Mapping Bytes", &itr, length);
         for (; itr < length; itr++) {
             pNode->reset();
             bit parent = input[itr] >> 4, data = input[itr] & 0x0F;
@@ -78,7 +79,7 @@ XorCrypt::CipherData *XorCrypt::encrypt_bytes(const bit *input, uint64_t length,
         }
         delete[] input;
 
-        cli_interface->set_status("Flushing byte stream", byte_order->size());
+        catch_progress("Flushing byte stream", &itr, byte_order->size());
         pCipherData->data.push_back(static_cast<bit>(byte_order->size()));
         for (auto &order: *byte_order) {
             Byte *pByte = (*unique_byte_set)[order];
@@ -106,9 +107,9 @@ XorCrypt::CipherData *XorCrypt::encrypt_bytes(const bit *input, uint64_t length,
     }
 }
 
-XorCrypt::CipherData *XorCrypt::decrypt_bytes(const bit *input, uint64_t length, const bit *key, uint64_t k_len, CLIProgressIndicator *cli_interface) const {
+XorCrypt::CipherData *XorCrypt::decrypt_bytes(const bit *input, uint64_t length, const bit *key, uint64_t k_len) const {
     try {
-        CLIProgressIndicator::print_status("Started decryption");
+        print_status("Started decryption");
         uint64_t k_idx = 0;
         auto pCipherData = new CipherData();
 
@@ -134,9 +135,8 @@ XorCrypt::CipherData *XorCrypt::decrypt_bytes(const bit *input, uint64_t length,
         uint64_t t_idx = idx;
         idx += exception_partition;
 
-        cli_interface->set_status("Parsing header", length - exception_partition);
         uint64_t progress = 1;
-        cli_interface->catch_progress(&progress);
+        catch_progress("Parsing header", &progress, length - exception_partition);
         while (idx < length) {
             progress++;
             bit parent = input[idx] >> 4;
@@ -152,8 +152,8 @@ XorCrypt::CipherData *XorCrypt::decrypt_bytes(const bit *input, uint64_t length,
         }
         idx = t_idx;
 
-        cli_interface->set_status("Mapping stream", byte_order->size());
         progress = 1;
+        catch_progress("Mapping stream", &progress, byte_order->size());
         for (auto &i: *byte_order) {
             progress++;
             Byte *pByte = (*unique_byte_set)[i];
@@ -166,7 +166,7 @@ XorCrypt::CipherData *XorCrypt::decrypt_bytes(const bit *input, uint64_t length,
         }
         delete[] input;
 
-        cli_interface->set_status("Flushing byte stream", length);
+        catch_progress("Flushing byte stream", &progress, length);
         Byte *pByte = (*unique_byte_set)[(*byte_order)[0]];
         progress = 1;
         while (pByte->idx < pByte->size) {
@@ -198,12 +198,12 @@ XorCrypt::CipherData *XorCrypt::decrypt_bytes(const bit *input, uint64_t length,
     }
 }
 
-bool XorCrypt::process_file(std::string &src_path, std::string &dest_path, std::string &key, bool to_encrypt, CLIProgressIndicator *cli_interface) {
+bool XorCrypt::process_file(std::string &src_path, std::string &dest_path, std::string &key, bool to_encrypt) {
     std::ifstream file(src_path, std::ios::binary);
     std::ofstream output_file(dest_path, std::ios::binary);
     if (!file.is_open()) return false;
     if (!output_file.is_open()) return false;
-    cli_interface->set_status("Reading file", 0);
+    print_status("Reading file");
 
     auto *cipher_key = new std::vector<bit>();
     for (auto &i: key) cipher_key->push_back(reinterpret_cast<bit &>(i));
@@ -214,40 +214,44 @@ bool XorCrypt::process_file(std::string &src_path, std::string &dest_path, std::
     file.seekg(0, std::ios::beg);
     file.read((char *) input, input_length);
     file.close();
-    CLIProgressIndicator::print_status("Size: " + std::to_string(input_length) + " bytes");
+    print_status("Size: " + std::to_string(input_length) + " bytes");
 
-    CipherData *res = to_encrypt ?
-                      encrypt_bytes(input, input_length, reinterpret_cast<const bit *>(key.c_str()), key.length(), cli_interface) :
-                      decrypt_bytes(input, input_length, reinterpret_cast<const bit *>(key.c_str()), key.length(), cli_interface);
+    CipherData *res = to_encrypt
+                      ? encrypt_bytes(input, input_length, reinterpret_cast<const bit *>(key.c_str()), key.length())
+                      : decrypt_bytes(input, input_length, reinterpret_cast<const bit *>(key.c_str()), key.length());
 
     if (res->error) return false;
-    cli_interface->set_status("Writing file", 0);
+    catch_progress("Writing file", nullptr, 0);
     output_file.write((char *) &res->data[0], int64_t(res->data.size()));
     output_file.close();
     delete res;
     return !file.is_open() && !output_file.is_open();
 }
 
-XorCrypt::CipherData *XorCrypt::process_string(std::string &str, std::string &key, bool to_encrypt, CLIProgressIndicator *cli_interface) {
+XorCrypt::CipherData *XorCrypt::process_string(std::string &str, std::string &key, bool to_encrypt) {
     return to_encrypt ?
            encrypt_bytes(reinterpret_cast<const bit *>(str.c_str()), str.length(),
-                         reinterpret_cast<const bit *>(key.c_str()), key.length(), cli_interface) :
+                         reinterpret_cast<const bit *>(key.c_str()), key.length()) :
            decrypt_bytes(reinterpret_cast<const bit *>(str.c_str()), str.length(),
-                         reinterpret_cast<const bit *>(key.c_str()), key.length(), cli_interface);
+                         reinterpret_cast<const bit *>(key.c_str()), key.length());
 }
 
-XorCrypt::CipherData *XorCrypt::encrypt_string(std::string &str, std::string &key, CLIProgressIndicator *cli_interface) {
-    return process_string(str, key, true, cli_interface);
+XorCrypt::CipherData *XorCrypt::encrypt_string(std::string &str, std::string &key, StatusListener *listener) {
+    mStatusListener = listener;
+    return process_string(str, key, true);
 }
 
-bool XorCrypt::encrypt_file(std::string &src_path, std::string &dest_path, std::string &key, CLIProgressIndicator *cli_interface) {
-    return process_file(src_path, dest_path, key, true, cli_interface);
+bool XorCrypt::encrypt_file(std::string &src_path, std::string &dest_path, std::string &key, StatusListener *listener) {
+    mStatusListener = listener;
+    return process_file(src_path, dest_path, key, true);
 }
 
-XorCrypt::CipherData *XorCrypt::decrypt_string(std::string &str, std::string &key, CLIProgressIndicator *cli_interface) {
-    return process_string(str, key, false, cli_interface);
+XorCrypt::CipherData *XorCrypt::decrypt_string(std::string &str, std::string &key, StatusListener *listener) {
+    mStatusListener = listener;
+    return process_string(str, key, false);
 }
 
-bool XorCrypt::decrypt_file(std::string &src_path, std::string &dest_path, std::string &key, CLIProgressIndicator *cli_interface) {
-    return process_file(src_path, dest_path, key, false, cli_interface);
+bool XorCrypt::decrypt_file(std::string &src_path, std::string &dest_path, std::string &key, StatusListener *listener) {
+    mStatusListener = listener;
+    return process_file(src_path, dest_path, key, false);
 }

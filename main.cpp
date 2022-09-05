@@ -12,24 +12,40 @@ void print_help() {
     std::cout << "\t-f <file_name> - Encrypts/Decrypts only the file mentioned.\n";
 }
 
+struct Status : XorCrypt::StatusListener {
+    CLIProgressIndicator *progressIndicator;
+
+    explicit Status(CLIProgressIndicator *indicator) : progressIndicator(indicator) {}
+
+    void print_status(const std::string &status) override {
+        progressIndicator->print_status(status);
+    }
+
+    void catch_progress(const std::string &status, uint64_t *progress_ptr, uint64_t total) override {
+        progressIndicator->update_status(status);
+        progressIndicator->start_progress();
+        progressIndicator->catch_progress(progress_ptr, total);
+    }
+};
+
 int exec_cli(int mode, std::string &file_name, std::string &key) {
     auto *cli = new CLIProgressIndicator();
-    cli->start_progress();
+    auto *status = new Status(cli);
 
     std::string dest_file_name(file_name);
     bool res;
     try {
         if (mode) {
             if (dest_file_name.find(".xor") != std::string::npos) {
-                CLIProgressIndicator::print_status("This file is not for encryption");
+                cli->print_status("This file is not for encryption");
                 return 1;
             }
             dest_file_name.append(".xor");
             std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-            res = XorCrypt{}.encrypt_file(file_name, dest_file_name, key, cli);
+            res = XorCrypt{}.encrypt_file(file_name, dest_file_name, key, status);
 
             auto time_end = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - begin).count();
-            CLIProgressIndicator::print_status("Time taken = " + std::to_string(time_end) + " [ms]");
+            cli->print_status("Time taken = " + std::to_string(time_end) + " [ms]");
         } else {
             if (dest_file_name.find(".xor") == std::string::npos) {
                 std::cout << "This file is not for decryption\n";
@@ -37,14 +53,14 @@ int exec_cli(int mode, std::string &file_name, std::string &key) {
             }
             dest_file_name = dest_file_name.substr(0, dest_file_name.length() - 4);
             std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-            res = XorCrypt{}.decrypt_file(file_name, dest_file_name, key, cli);
+            res = XorCrypt{}.decrypt_file(file_name, dest_file_name, key, status);
 
             auto time_end = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - begin).count();
-            CLIProgressIndicator::print_status("Time taken = " + std::to_string(time_end) + " [ms]");
+            cli->print_status("Time taken = " + std::to_string(time_end) + " [ms]");
         }
     } catch (std::exception &e) {
-        CLIProgressIndicator::print_status("Unknown error occurred");
-        CLIProgressIndicator::print_status(e.what());
+        std::cout << "Unknown error occurred\n";
+        std::cout << e.what() << "\n";
         return 1;
     }
     cli->stop_progress();

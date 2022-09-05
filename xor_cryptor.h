@@ -18,12 +18,20 @@
 #include <vector>
 #include <fstream>
 #include <filesystem>
-#include <iostream>
-#include "cli.h"
 
 struct XorCrypt {
 
     typedef unsigned char bit;
+
+    struct StatusListener {
+        virtual void print_status(const std::string &status) = 0;
+
+        virtual void catch_progress(const std::string &status, uint64_t *progress_ptr, uint64_t total) = 0;
+
+        virtual ~StatusListener() = 0;
+    };
+
+    StatusListener *mStatusListener = nullptr;
 
 private:
     struct CipherData {
@@ -109,13 +117,23 @@ private:
 
     void insert_node(std::vector<Byte *> *unique_byte_set, std::vector<bit> *exceptions, bit parent, Node *node) const;
 
-    CipherData *encrypt_bytes(const bit *input, uint64_t length, const bit *key, uint64_t k_len, CLIProgressIndicator *cli_interface) const;
+    CipherData *encrypt_bytes(const bit *input, uint64_t length, const bit *key, uint64_t k_len) const;
 
-    CipherData *decrypt_bytes(const bit *input, uint64_t length, const bit *key, uint64_t k_len, CLIProgressIndicator *cli_interface) const;
+    CipherData *decrypt_bytes(const bit *input, uint64_t length, const bit *key, uint64_t k_len) const;
 
-    bool process_file(std::string &src_path, std::string &dest_path, std::string &key, bool to_encrypt, CLIProgressIndicator *cli_interface);
+    bool process_file(std::string &src_path, std::string &dest_path, std::string &key, bool to_encrypt);
 
-    CipherData *process_string(std::string &str, std::string &key, bool to_encrypt, CLIProgressIndicator *cli_interface);
+    CipherData *process_string(std::string &str, std::string &key, bool to_encrypt);
+
+    void print_status(const std::string &status) const {
+        if (mStatusListener == nullptr) return;
+        mStatusListener->print_status(status);
+    }
+
+    void catch_progress(const std::string &status, uint64_t *progress_ptr, uint64_t total) const {
+        if (mStatusListener == nullptr) return;
+        mStatusListener->catch_progress(status, progress_ptr, total);
+    }
 
 public:
     XorCrypt() {
@@ -124,17 +142,18 @@ public:
         for (bit i = 0; i < 0xFF; i++) (*mByteSets)[i] = new Byte(i);
     }
 
-    CipherData *encrypt_string(std::string &str, std::string &key, CLIProgressIndicator *cli_interface);
+    CipherData *encrypt_string(std::string &str, std::string &key, StatusListener *listener = nullptr);
 
-    bool encrypt_file(std::string &src_path, std::string &dest_path, std::string &key, CLIProgressIndicator *cli_interface);
+    bool encrypt_file(std::string &src_path, std::string &dest_path, std::string &key, StatusListener *listener = nullptr);
 
-    CipherData *decrypt_string(std::string &str, std::string &key, CLIProgressIndicator *cli_interface);
+    CipherData *decrypt_string(std::string &str, std::string &key, StatusListener *listener = nullptr);
 
-    bool decrypt_file(std::string &src_path, std::string &dest_path, std::string &key, CLIProgressIndicator *cli_interface);
+    bool decrypt_file(std::string &src_path, std::string &dest_path, std::string &key, StatusListener *listener = nullptr);
 
     ~XorCrypt() {
         delete mByteSets;
         delete mBitStream;
+        delete mStatusListener;
     }
 };
 
