@@ -1,4 +1,7 @@
 #include "cli.h"
+#include <iostream>
+#include <iomanip>
+#include <vector>
 
 void CLIProgressIndicator::start_progress() {
     if (mProgressThread != nullptr) return;

@@ -2,11 +2,7 @@
 #define CLI_PROGRESS_INDICATOR
 
 #include <string>
-#include <iostream>
-#include <iomanip>
-#include <unistd.h>
 #include <thread>
-#include <vector>
 
 class CLIProgressIndicator {
     std::string mPreIndicatorText;
