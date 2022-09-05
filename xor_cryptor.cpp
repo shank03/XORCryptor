@@ -117,40 +117,48 @@ XorCrypt::CipherData *XorCrypt::decrypt_bytes(const bit *input, uint64_t length,
         auto *unique_byte_set = new std::vector<Byte *>(0x10, nullptr);
         auto *byte_order = new std::vector<bit>();
 
-        uint64_t idx = 0, exception_partition = 0;
-        bit parent_length = input[idx++];
-        while (parent_length--) {
-            bit parent = input[idx] >> 4;
-            bit bits_length = input[idx++] & 0x0F;
+        uint64_t idx = 0, t_idx = 0, exception_partition = 0;
+        uint64_t progress = 1, counter = 0;
+        uint64_t parent_length = input[idx++];
+        bool parsing_header = true;
 
-            uint64_t child_count = 0, bits_idx = idx + uint64_t(bits_length);
-            while (idx < bits_idx) child_count = (child_count << 8) | uint64_t(input[idx++]);
-
-            if ((*unique_byte_set)[parent] == nullptr) {
-                (*unique_byte_set)[parent] = (*mByteSets)[parent];
-                byte_order->push_back(parent);
-            }
-            (*unique_byte_set)[parent]->size = child_count;
-            exception_partition += child_count;
-        }
-        uint64_t t_idx = idx;
-        idx += exception_partition;
-
-        uint64_t progress = 1;
-        catch_progress("Parsing header", &progress, length - exception_partition);
-        while (idx < length) {
+        catch_progress("Parsing header", &progress, parent_length);
+        loop:
+        while (counter < parent_length) {
             progress++;
             bit parent = input[idx] >> 4;
             bit bits_length = input[idx++] & 0x0F;
-            uint64_t bits = uint64_t(bits_length) + idx;
 
-            uint64_t node_idx = 0;
-            while (idx < bits) node_idx = (node_idx << 8) | input[idx++];
+            uint64_t bits_value = 0, bits_idx = idx + uint64_t(bits_length);
+            while (idx < bits_idx) bits_value = (bits_value << 8) | uint64_t(input[idx++]);
 
-            if ((*unique_byte_set)[parent]->exceptions == nullptr) {
-                (*unique_byte_set)[parent]->exceptions = new std::vector<uint64_t>();
+            if (parsing_header) {
+                counter++;
+                if ((*unique_byte_set)[parent] == nullptr) {
+                    (*unique_byte_set)[parent] = (*mByteSets)[parent];
+                    byte_order->push_back(parent);
+                }
+                (*unique_byte_set)[parent]->size = bits_value;
+                exception_partition += bits_value;
+            } else {
+                if ((*unique_byte_set)[parent]->exceptions == nullptr) {
+                    (*unique_byte_set)[parent]->exceptions = new std::vector<uint64_t>();
+                }
+                (*unique_byte_set)[parent]->exceptions->push_back(bits_value);
+                counter = idx;
             }
-            (*unique_byte_set)[parent]->exceptions->push_back(node_idx);
+        }
+        if (parsing_header) {
+            parsing_header = false;
+
+            t_idx = idx;
+            idx += exception_partition;
+            counter = idx;
+
+            catch_progress("Parsing header", &progress, exception_partition);
+            progress = 0;
+            parent_length = length;
+            goto loop;
         }
         idx = t_idx;
 
