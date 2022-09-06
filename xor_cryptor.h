@@ -31,9 +31,9 @@ struct XorCrypt {
         virtual ~StatusListener() = 0;
     };
 
+private:
     StatusListener *mStatusListener = nullptr;
 
-private:
     struct CipherData {
         std::vector<bit> data;
         bool error;
@@ -144,12 +144,19 @@ private:
         mStatusListener->catch_progress(status, progress_ptr, total);
     }
 
-public:
-    XorCrypt() {
+    void print_speed(uint64_t fileSize, uint64_t time_end);
+
+    void reset_bytes() {
+        delete mBitStream;
+        delete mByteSets;
+
         mBitStream = new BitStream();
         mByteSets = new std::vector<Byte *>(0x10, nullptr);
         for (bit i = 0; i < 0x10; i++) (*mByteSets)[i] = new Byte(i);
     }
+
+public:
+    XorCrypt() : mStatusListener(nullptr), mBitStream(nullptr), mByteSets(nullptr) {}
 
     CipherData *encrypt_string(std::string &str, std::string &key, StatusListener *listener = nullptr);
 

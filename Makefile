@@ -13,8 +13,8 @@
 #
 
 CC := g++
-CFLAGS := -Wall -Wextra -Werror -std=c++17 -pedantic -O3 -D_GLIBCXX_ASSERTIONS
-LIB := -pthread
+CFLAGS := -Wall -Wextra -Werror -std=c++17 -O3 -D_GLIBCXX_ASSERTIONS
+LIB := -pthread -pedantic
 INC := -I.
 
 BIN_DIR := $(CURDIR)/bin

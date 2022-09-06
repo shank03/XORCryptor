@@ -41,22 +41,14 @@ int exec_cli(int mode, std::string &file_name, std::string &key) {
                 return 1;
             }
             dest_file_name.append(".xor");
-            std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-            res = XorCrypt{}.encrypt_file(file_name, dest_file_name, key, status);
-
-            auto time_end = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - begin).count();
-            cli->print_status("Time taken = " + std::to_string(time_end) + " [ms]");
+            res = XorCrypt().encrypt_file(file_name, dest_file_name, key, status);
         } else {
             if (dest_file_name.find(".xor") == std::string::npos) {
                 std::cout << "This file is not for decryption\n";
                 return 1;
             }
             dest_file_name = dest_file_name.substr(0, dest_file_name.length() - 4);
-            std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-            res = XorCrypt{}.decrypt_file(file_name, dest_file_name, key, status);
-
-            auto time_end = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - begin).count();
-            cli->print_status("Time taken = " + std::to_string(time_end) + " [ms]");
+            res = XorCrypt().decrypt_file(file_name, dest_file_name, key, status);
         }
     } catch (std::exception &e) {
         std::cout << "Unknown error occurred\n";

@@ -230,7 +230,28 @@ XorCrypt::CipherData *XorCrypt::decrypt_bytes(const bit *input, uint64_t length,
     }
 }
 
+void XorCrypt::print_speed(uint64_t fileSize, uint64_t time_end) {
+    const uint64_t KILO_BYTE = uint64_t(1024) * uint64_t(sizeof(unsigned char));
+    const uint64_t MEGA_BYTE = uint64_t(1024) * KILO_BYTE;
+
+    std::string unit;
+    if (fileSize >= MEGA_BYTE) {
+        unit = " MB/s";
+        fileSize /= MEGA_BYTE;
+    } else {
+        unit = " KB/s";
+        fileSize /= KILO_BYTE;
+    }
+
+    long double speed = (long double) fileSize / time_end * 1000.0;
+    std::stringstream str_speed;
+    str_speed << std::fixed << std::setprecision(2) << speed;
+    print_status("Time taken = " + std::to_string(time_end) + " [ms] - " + str_speed.str() + unit);
+}
+
 bool XorCrypt::process_file(std::string &src_path, std::string &dest_path, std::string &key, bool to_encrypt) {
+    reset_bytes();
+
     std::ifstream file(src_path, std::ios::binary);
     std::ofstream output_file(dest_path, std::ios::binary);
     if (!file.is_open()) return false;
@@ -247,10 +268,16 @@ bool XorCrypt::process_file(std::string &src_path, std::string &dest_path, std::
 
     print_status("File size: " + std::to_string(input_length) + " bytes");
 
+    bit *cipher_key = new bit[key.length()];
+    for (uint64_t i = 0; i < key.length(); i++) cipher_key[i] = key[i];
+
+    std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
     CipherData *res = to_encrypt
-                      ? encrypt_bytes(input, input_length, reinterpret_cast<const bit *>(key.c_str()), key.length())
-                      : decrypt_bytes(input, input_length, reinterpret_cast<const bit *>(key.c_str()), key.length());
+                      ? encrypt_bytes(input, input_length, cipher_key, key.length())
+                      : decrypt_bytes(input, input_length, cipher_key, key.length());
     if (res->error) return false;
+    uint64_t time_end = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - begin).count();
+    print_speed(input_length, time_end);
 
     catch_progress("Writing file", nullptr, 0);
     output_file.write((char *) &res->data[0], int64_t(res->data.size()));
@@ -261,11 +288,15 @@ bool XorCrypt::process_file(std::string &src_path, std::string &dest_path, std::
 }
 
 XorCrypt::CipherData *XorCrypt::process_string(std::string &str, std::string &key, bool to_encrypt) {
+    reset_bytes();
+
+    bit *input = new bit[str.length()], *cipher_key = new bit[key.length()];
+    for (uint64_t i = 0; i < str.length(); i++) input[i] = str[i];
+    for (uint64_t i = 0; i < key.length(); i++) cipher_key[i] = key[i];
+
     return to_encrypt ?
-           encrypt_bytes(reinterpret_cast<const bit *>(str.c_str()), str.length(),
-                         reinterpret_cast<const bit *>(key.c_str()), key.length()) :
-           decrypt_bytes(reinterpret_cast<const bit *>(str.c_str()), str.length(),
-                         reinterpret_cast<const bit *>(key.c_str()), key.length());
+           encrypt_bytes(input, str.length(), cipher_key, key.length()) :
+           decrypt_bytes(input, str.length(), cipher_key, key.length());
 }
 
 XorCrypt::CipherData *XorCrypt::encrypt_string(std::string &str, std::string &key, StatusListener *listener) {
