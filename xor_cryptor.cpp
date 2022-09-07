@@ -76,10 +76,10 @@ void XorCrypt::e_flush_streams(const bit *key, uint64_t k_len, XorCrypt::CipherD
                                const std::vector<Byte *> *unique_byte_set, const std::vector<bit> *byte_order, uint64_t *itr) const {
     uint64_t k_idx = 0;
     catch_progress("Flushing byte stream", itr, byte_order->size());
-    pCipherData->data.push_back(static_cast<bit>(byte_order->size()));
+    pCipherData->data->push_back(static_cast<bit>(byte_order->size()));
     for (auto &order: *byte_order) {
         Byte *pByte = (*unique_byte_set)[order];
-        write_node_property(&pCipherData->data, pByte->val, pByte->size);
+        write_node_property(pCipherData->data, pByte->val, pByte->size);
     }
     *itr = 0;
     for (; *itr < byte_order->size(); (*itr)++) {
@@ -88,7 +88,7 @@ void XorCrypt::e_flush_streams(const bit *key, uint64_t k_len, XorCrypt::CipherD
             if (k_idx == k_len) k_idx = 0;
             bit bData = b;
             bData ^= key[k_idx++];
-            pCipherData->data.push_back(bData);
+            pCipherData->data->push_back(bData);
         }
         delete pByte->stream;
     }
@@ -107,7 +107,7 @@ XorCrypt::CipherData *XorCrypt::encrypt_bytes(const bit *input, uint64_t length,
 
         e_flush_streams(key, k_len, pCipherData, unique_byte_set, byte_order, &itr);
 
-        pCipherData->data.insert(pCipherData->data.end(), exceptions->begin(), exceptions->end());
+        pCipherData->data->insert(pCipherData->data->end(), exceptions->begin(), exceptions->end());
         delete unique_byte_set;
         delete byte_order;
         delete exceptions;
@@ -177,7 +177,7 @@ void XorCrypt::d_flush_stream(uint64_t length, XorCrypt::CipherData *pCipherData
         bit val = data >> 4, next_parent = data & 0x0F;
         data = pByte->val << 4;
         data |= val;
-        pCipherData->data.push_back(data);
+        pCipherData->data->push_back(data);
 
         if (next_parent == 0) {
             if (pByte->exceptions == nullptr || pByte->exp_idx >= pByte->exceptions->size()) continue;
@@ -280,9 +280,8 @@ bool XorCrypt::process_file(std::string &src_path, std::string &dest_path, std::
     print_speed(input_length, time_end);
 
     catch_progress("Writing file", nullptr, 0);
-    output_file.write((char *) &res->data[0], int64_t(res->data.size()));
+    output_file.write((char *) &(*res->data)[0], int64_t(res->data->size()));
     output_file.close();
-
     delete res;
     return !file.is_open() && !output_file.is_open();
 }

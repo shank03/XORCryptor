@@ -35,15 +35,17 @@ private:
     StatusListener *mStatusListener = nullptr;
 
     struct CipherData {
-        std::vector<bit> data;
+        std::vector<bit> *data;
         bool error;
 
-        explicit CipherData() : data(), error(false) {}
+        explicit CipherData() : data(new std::vector<bit>()), error(false) {}
 
-        explicit CipherData(bool er) : data(), error(er) {}
+        explicit CipherData(bool er) : data(nullptr), error(er) {}
 
         void extract_string(std::string *dest) const {
-            for (auto i: data) dest->push_back(reinterpret_cast<char &>(i));
+            if (data == nullptr) return;
+            for (auto i: *data) dest->push_back(reinterpret_cast<char &>(i));
+            delete data;
         }
     };
 
