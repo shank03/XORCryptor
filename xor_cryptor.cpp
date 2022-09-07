@@ -249,7 +249,7 @@ void XorCrypt::print_speed(uint64_t fileSize, uint64_t time_end) {
     print_status("Time taken = " + std::to_string(time_end) + " [ms] - " + str_speed.str() + unit);
 }
 
-bool XorCrypt::process_file(std::string &src_path, std::string &dest_path, std::string &key, bool to_encrypt) {
+bool XorCrypt::process_file(const std::string &src_path, const std::string &dest_path, const std::string &key, bool to_encrypt) {
     reset_bytes();
 
     std::ifstream file(src_path, std::ios::binary);
@@ -286,7 +286,7 @@ bool XorCrypt::process_file(std::string &src_path, std::string &dest_path, std::
     return !file.is_open() && !output_file.is_open();
 }
 
-XorCrypt::CipherData *XorCrypt::process_string(std::string &str, std::string &key, bool to_encrypt) {
+XorCrypt::CipherData *XorCrypt::process_string(const std::string &str, const std::string &key, bool to_encrypt) {
     reset_bytes();
 
     bit *input = new bit[str.length()], *cipher_key = new bit[key.length()];
@@ -298,22 +298,22 @@ XorCrypt::CipherData *XorCrypt::process_string(std::string &str, std::string &ke
            decrypt_bytes(input, str.length(), cipher_key, key.length());
 }
 
-XorCrypt::CipherData *XorCrypt::encrypt_string(std::string &str, std::string &key, StatusListener *listener) {
+XorCrypt::CipherData *XorCrypt::encrypt_string(const std::string &str, const std::string &key, StatusListener *listener) {
     mStatusListener = listener;
     return process_string(str, key, true);
 }
 
-bool XorCrypt::encrypt_file(std::string &src_path, std::string &dest_path, std::string &key, StatusListener *listener) {
+bool XorCrypt::encrypt_file(const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener) {
     mStatusListener = listener;
     return process_file(src_path, dest_path, key, true);
 }
 
-XorCrypt::CipherData *XorCrypt::decrypt_string(std::string &str, std::string &key, StatusListener *listener) {
+XorCrypt::CipherData *XorCrypt::decrypt_string(const std::string &str, const std::string &key, StatusListener *listener) {
     mStatusListener = listener;
     return process_string(str, key, false);
 }
 
-bool XorCrypt::decrypt_file(std::string &src_path, std::string &dest_path, std::string &key, StatusListener *listener) {
+bool XorCrypt::decrypt_file(const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener) {
     mStatusListener = listener;
     return process_file(src_path, dest_path, key, false);
 }

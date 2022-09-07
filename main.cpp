@@ -27,7 +27,7 @@ struct Status : XorCrypt::StatusListener {
     }
 };
 
-int exec_cli(int mode, std::string &file_name, std::string &key) {
+int exec_cli_file(int mode, const std::string &file_name, const std::string &key) {
     auto *cli = new CLIProgressIndicator();
     auto *status = new Status(cli);
     cli->start_progress();
@@ -98,9 +98,9 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    std::string file_name = std::string(f_val), key;
+    std::string key;
     std::cout << "Enter the key: ";
     std::cin >> key;
 
-    return exec_cli(mode, file_name, key);
+    return exec_cli_file(mode, std::string(f_val), key);
 }

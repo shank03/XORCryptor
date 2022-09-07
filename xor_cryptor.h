@@ -132,9 +132,9 @@ private:
 
     CipherData *decrypt_bytes(const bit *input, uint64_t length, const bit *key, uint64_t k_len) const;
 
-    bool process_file(std::string &src_path, std::string &dest_path, std::string &key, bool to_encrypt);
+    bool process_file(const std::string &src_path, const std::string &dest_path, const std::string &key, bool to_encrypt);
 
-    CipherData *process_string(std::string &str, std::string &key, bool to_encrypt);
+    CipherData *process_string(const std::string &str, const std::string &key, bool to_encrypt);
 
     void print_status(const std::string &status) const {
         if (mStatusListener == nullptr) return;
@@ -160,13 +160,13 @@ private:
 public:
     XorCrypt() : mStatusListener(nullptr), mBitStream(nullptr), mByteSets(nullptr) {}
 
-    CipherData *encrypt_string(std::string &str, std::string &key, StatusListener *listener = nullptr);
+    CipherData *encrypt_string(const std::string &str, const std::string &key, StatusListener *listener = nullptr);
 
-    bool encrypt_file(std::string &src_path, std::string &dest_path, std::string &key, StatusListener *listener = nullptr);
+    bool encrypt_file(const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener = nullptr);
 
-    CipherData *decrypt_string(std::string &str, std::string &key, StatusListener *listener = nullptr);
+    CipherData *decrypt_string(const std::string &str, const std::string &key, StatusListener *listener = nullptr);
 
-    bool decrypt_file(std::string &src_path, std::string &dest_path, std::string &key, StatusListener *listener = nullptr);
+    bool decrypt_file(const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener = nullptr);
 
     ~XorCrypt() {
         delete mByteSets;
