@@ -19,6 +19,5 @@ build
 bin
 effolkronium
 .*
-CMakeLists.txt
 tests
 cmake-build-debug
