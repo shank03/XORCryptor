@@ -10,16 +10,19 @@ could attempt to decrypt it but not get the correct result.
 ```shell
 git clone https://github.com/shank03/XORCryptor.git -b cli
 cd XORCryptor
-sudo make install
+sudo make install   # for linux
+sudo make           # for windows
 ```
+
+Executable file will be present in `bin` as `xor_cryptor(.exe)`
 
 ### Usage
 
 It will ask for key everytime you encrypt or decrypt some file
 
 ```text
-xor_cryptor -h # help
-xor_cryptor -m e -f info.txt    # encrypts the info.txt
+xor_cryptor -h                      # help
+xor_cryptor -m e -f info.txt        # encrypts the info.txt
 xor_cryptor -m d -f info.txt.xor    # decrypts the info.txt.xor
 ```
 
