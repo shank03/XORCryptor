@@ -84,17 +84,12 @@ private:
 
     struct Byte {
         bit val;
-        uint64_t idx, size, exp_idx;
+        uint64_t idx, size;
         std::vector<bit> *stream;
-        std::vector<uint64_t> *exceptions;
 
-        explicit Byte(int val) : val(val), idx(0), size(0), exp_idx(0),
-                                 stream(new std::vector<bit>()), exceptions(nullptr) {}
+        explicit Byte(int val) : val(val), idx(0), size(0), stream(new std::vector<bit>()) {}
 
-        ~Byte() {
-            delete stream;
-            delete exceptions;
-        }
+        ~Byte() { delete stream; }
     };
 
     struct Node {
@@ -114,20 +109,23 @@ private:
 
     void write_node_property(std::vector<bit> *stream, bit parent, uint64_t value) const;
 
-    void insert_node(std::vector<Byte *> *unique_byte_set, std::vector<bit> *exceptions, bit parent, Node *node) const;
+    static void insert_node(std::vector<Byte *> *unique_byte_set, std::vector<bit> *exception_stream, bit parent, Node *node, uint64_t &idx);
 
-    void e_map_bytes(const bit *input, uint64_t length, std::vector<Byte *> *unique_byte_set,
-                     std::vector<bit> *exceptions, std::vector<bit> *byte_order, uint64_t *itr) const;
+    void e_map_bytes(const bit *input, uint64_t length, std::vector<bit> *exception_stream,
+                     std::vector<Byte *> *unique_byte_set, std::vector<bit> *byte_order, uint64_t *itr) const;
+
+    template<typename Iterator>
+    void process_stream(std::vector<bit> *ostream, Iterator begin, Iterator end, const bit *key, uint64_t *k_idx, uint64_t k_len) const;
 
     void e_flush_streams(const bit *key, uint64_t k_len, CipherData *pCipherData,
                          const std::vector<Byte *> *unique_byte_set, const std::vector<bit> *byte_order, uint64_t *itr) const;
 
     CipherData *encrypt_bytes(const bit *input, uint64_t length, const bit *key, uint64_t k_len) const;
 
-    void d_parse_header(const bit *input, uint64_t length, std::vector<Byte *> *unique_byte_set,
-                        std::vector<bit> *byte_order, uint64_t *idx, uint64_t *progress) const;
+    void d_parse_header(const bit *input, uint64_t length, const bit *key, uint64_t k_len, std::vector<bit> *exception_stream,
+                        std::vector<Byte *> *unique_byte_set, std::vector<bit> *byte_order, uint64_t *idx, uint64_t *progress) const;
 
-    void d_flush_stream(uint64_t length, CipherData *pCipherData,
+    void d_flush_stream(uint64_t length, XorCrypt::CipherData *pCipherData, std::vector<bit> *exception_stream,
                         const std::vector<Byte *> *unique_byte_set, const std::vector<bit> *byte_order, uint64_t *progress) const;
 
     CipherData *decrypt_bytes(const bit *input, uint64_t length, const bit *key, uint64_t k_len) const;
