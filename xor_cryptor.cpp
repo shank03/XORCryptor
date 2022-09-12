@@ -58,7 +58,7 @@ void XorCrypt::process_stream(std::vector<bit> *ostream, Iterator begin, Iterato
     }
 }
 
-void XorCrypt::e_map_bytes(const bit *input, uint64_t length, std::vector<bit> *exception_stream,
+void XorCrypt::e_map_bytes(bit *input, uint64_t length, std::vector<bit> *exception_stream,
                            Byte **unique_byte_set, std::vector<bit> *byte_order, uint64_t *itr) const {
     Node *pNode = new Node();
     catch_progress("Mapping Bytes", itr, length);
@@ -83,7 +83,7 @@ void XorCrypt::e_map_bytes(const bit *input, uint64_t length, std::vector<bit> *
         }
         insert_node(unique_byte_set, exception_stream, parent, pNode, *itr);
     }
-    delete[] input;
+    free(input);
 }
 
 void XorCrypt::e_flush_streams(const bit *key, uint64_t k_len, XorCrypt::CipherData *pCipherData,
@@ -103,7 +103,7 @@ void XorCrypt::e_flush_streams(const bit *key, uint64_t k_len, XorCrypt::CipherD
     }
 }
 
-XorCrypt::CipherData *XorCrypt::encrypt_bytes(const bit *input, uint64_t length, const bit *key, uint64_t k_len) const {
+XorCrypt::CipherData *XorCrypt::encrypt_bytes(bit *input, uint64_t length, const bit *key, uint64_t k_len) const {
     try {
         print_status("Started encryption");
         auto pCipherData = new CipherData();

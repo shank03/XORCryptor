@@ -53,7 +53,10 @@ private:
         int byte_length;
         uint64_t *bit_stream;
 
-        BitStream() : byte_length(0), bit_stream(nullptr) {}
+        void construct() {
+            byte_length = 0;
+            bit_stream = nullptr;
+        }
 
         void to_bit_stream(uint64_t value) {
             if (bit_stream == nullptr) bit_stream = (uint64_t *) malloc(8 * sizeof(uint64_t));
@@ -89,7 +92,11 @@ private:
         uint64_t idx, size;
         std::vector<bit> *stream;
 
-        explicit Byte(int val) : val(val), idx(0), size(0), stream(new std::vector<bit>()) {}
+        void construct(bit value) {
+            val = value;
+            idx = size = 0;
+            stream = new std::vector<bit>();
+        }
 
         ~Byte() { delete stream; }
     };
@@ -113,7 +120,7 @@ private:
 
     static void insert_node(Byte **unique_byte_set, std::vector<bit> *exception_stream, bit parent, Node *node, uint64_t &idx);
 
-    void e_map_bytes(const bit *input, uint64_t length, std::vector<bit> *exception_stream,
+    void e_map_bytes(bit *input, uint64_t length, std::vector<bit> *exception_stream,
                      Byte **unique_byte_set, std::vector<bit> *byte_order, uint64_t *itr) const;
 
     template<typename Iterator>
@@ -122,7 +129,7 @@ private:
     void e_flush_streams(const bit *key, uint64_t k_len, CipherData *pCipherData,
                          Byte **unique_byte_set, const std::vector<bit> *byte_order, uint64_t *itr) const;
 
-    CipherData *encrypt_bytes(const bit *input, uint64_t length, const bit *key, uint64_t k_len) const;
+    CipherData *encrypt_bytes(bit *input, uint64_t length, const bit *key, uint64_t k_len) const;
 
     void d_parse_header(const bit *input, uint64_t length, const bit *key, uint64_t k_len, std::vector<bit> *exception_stream,
                         Byte **unique_byte_set, std::vector<bit> *byte_order, uint64_t *idx, uint64_t *progress) const;
@@ -149,12 +156,17 @@ private:
     void print_speed(uint64_t fileSize, uint64_t time_end);
 
     void reset_bytes() {
-        delete mBitStream;
+        free(mBitStream);
         free(mByteSets);
 
-        mBitStream = new BitStream();
+        mBitStream = (BitStream *) malloc(sizeof(BitStream));
+        mBitStream->construct();
+
         mByteSets = (Byte **) malloc(0x80);
-        for (bit i = 0; i < 0x10; i++) mByteSets[i] = new Byte(i);
+        for (bit i = 0; i < 0x10; i++) {
+            mByteSets[i] = (Byte *) malloc(sizeof(Byte));
+            mByteSets[i]->construct(i);
+        }
     }
 
 public:
@@ -169,8 +181,8 @@ public:
     bool decrypt_file(const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener = nullptr);
 
     ~XorCrypt() {
-        delete mByteSets;
-        delete mBitStream;
+        free(mByteSets);
+        free(mBitStream);
         delete mStatusListener;
     }
 };
