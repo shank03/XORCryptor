@@ -85,6 +85,16 @@ private:
         ~BitStream() { free(bit_stream); }
     };
 
+    struct ByteOrder {
+        bit size;
+        bit order[0x10];
+
+        void push_back(bit value) {
+            if (size == 0x10) return;
+            order[size++] = value;
+        }
+    };
+
     struct Node;
 
     struct Byte {
@@ -121,21 +131,21 @@ private:
     static void insert_node(Byte **unique_byte_set, std::vector<bit> *exception_stream, bit parent, Node *node, uint64_t &idx);
 
     void e_map_bytes(bit *input, uint64_t length, std::vector<bit> *exception_stream,
-                     Byte **unique_byte_set, std::vector<bit> *byte_order, uint64_t *itr) const;
+                     Byte **unique_byte_set, ByteOrder *byte_order, uint64_t *itr) const;
 
     template<typename Iterator>
     void process_stream(std::vector<bit> *ostream, Iterator begin, Iterator end, const bit *key, uint64_t *k_idx, uint64_t k_len) const;
 
     void e_flush_streams(const bit *key, uint64_t k_len, CipherData *pCipherData,
-                         Byte **unique_byte_set, const std::vector<bit> *byte_order, uint64_t *itr) const;
+                         Byte **unique_byte_set, const ByteOrder *byte_order, uint64_t *itr) const;
 
     CipherData *encrypt_bytes(bit *input, uint64_t length, const bit *key, uint64_t k_len) const;
 
     void d_parse_header(const bit *input, uint64_t length, const bit *key, uint64_t k_len, std::vector<bit> *exception_stream,
-                        Byte **unique_byte_set, std::vector<bit> *byte_order, uint64_t *idx, uint64_t *progress) const;
+                        Byte **unique_byte_set, ByteOrder *byte_order, uint64_t *idx, uint64_t *progress) const;
 
     void d_flush_stream(uint64_t length, XorCrypt::CipherData *pCipherData, std::vector<bit> *exception_stream,
-                        Byte **unique_byte_set, const std::vector<bit> *byte_order, uint64_t *progress) const;
+                        Byte **unique_byte_set, bit top, uint64_t *progress) const;
 
     CipherData *decrypt_bytes(const bit *input, uint64_t length, const bit *key, uint64_t k_len) const;
 
