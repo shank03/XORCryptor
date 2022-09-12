@@ -105,28 +105,28 @@ private:
     };
 
     BitStream *mBitStream;
-    std::vector<Byte *> *mByteSets;
+    Byte **mByteSets;
 
     void write_node_property(std::vector<bit> *stream, bit parent, uint64_t value) const;
 
-    static void insert_node(std::vector<Byte *> *unique_byte_set, std::vector<bit> *exception_stream, bit parent, Node *node, uint64_t &idx);
+    static void insert_node(Byte **unique_byte_set, std::vector<bit> *exception_stream, bit parent, Node *node, uint64_t &idx);
 
     void e_map_bytes(const bit *input, uint64_t length, std::vector<bit> *exception_stream,
-                     std::vector<Byte *> *unique_byte_set, std::vector<bit> *byte_order, uint64_t *itr) const;
+                     Byte **unique_byte_set, std::vector<bit> *byte_order, uint64_t *itr) const;
 
     template<typename Iterator>
     void process_stream(std::vector<bit> *ostream, Iterator begin, Iterator end, const bit *key, uint64_t *k_idx, uint64_t k_len) const;
 
     void e_flush_streams(const bit *key, uint64_t k_len, CipherData *pCipherData,
-                         const std::vector<Byte *> *unique_byte_set, const std::vector<bit> *byte_order, uint64_t *itr) const;
+                         Byte **unique_byte_set, const std::vector<bit> *byte_order, uint64_t *itr) const;
 
     CipherData *encrypt_bytes(const bit *input, uint64_t length, const bit *key, uint64_t k_len) const;
 
     void d_parse_header(const bit *input, uint64_t length, const bit *key, uint64_t k_len, std::vector<bit> *exception_stream,
-                        std::vector<Byte *> *unique_byte_set, std::vector<bit> *byte_order, uint64_t *idx, uint64_t *progress) const;
+                        Byte **unique_byte_set, std::vector<bit> *byte_order, uint64_t *idx, uint64_t *progress) const;
 
     void d_flush_stream(uint64_t length, XorCrypt::CipherData *pCipherData, std::vector<bit> *exception_stream,
-                        const std::vector<Byte *> *unique_byte_set, const std::vector<bit> *byte_order, uint64_t *progress) const;
+                        Byte **unique_byte_set, const std::vector<bit> *byte_order, uint64_t *progress) const;
 
     CipherData *decrypt_bytes(const bit *input, uint64_t length, const bit *key, uint64_t k_len) const;
 
@@ -148,11 +148,11 @@ private:
 
     void reset_bytes() {
         delete mBitStream;
-        delete mByteSets;
+        free(mByteSets);
 
         mBitStream = new BitStream();
-        mByteSets = new std::vector<Byte *>(0x10, nullptr);
-        for (bit i = 0; i < 0x10; i++) (*mByteSets)[i] = new Byte(i);
+        mByteSets = (Byte **) malloc(0x80);
+        for (bit i = 0; i < 0x10; i++) mByteSets[i] = new Byte(i);
     }
 
 public:
