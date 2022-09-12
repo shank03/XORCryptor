@@ -51,33 +51,35 @@ private:
 
     struct BitStream {
         int byte_length;
-        std::vector<uint64_t> *bit_stream;
+        uint64_t *bit_stream;
 
-        BitStream() : byte_length(0), bit_stream(new std::vector<uint64_t>(8)) {}
+        BitStream() : byte_length(0), bit_stream(nullptr) {}
 
         void to_bit_stream(uint64_t value) {
+            if (bit_stream == nullptr) bit_stream = (uint64_t *) malloc(8 * sizeof(uint64_t));
+
             if (value == 0) {
                 byte_length = 1;
-                std::fill(bit_stream->begin(), bit_stream->end(), 0);
+                std::fill(bit_stream, bit_stream + 8, 0);
                 return;
             }
 
-            std::fill(bit_stream->begin(), bit_stream->end(), value);
+            std::fill(bit_stream, bit_stream + 8, value);
             int i;
             for (i = 0; i < 8; i++) {
-                (*bit_stream)[i] >>= uint64_t(i * 8);
-                (*bit_stream)[i] &= uint64_t(0xFF);
+                bit_stream[i] >>= uint64_t(i * 8);
+                bit_stream[i] &= uint64_t(0xFF);
             }
-            for (i = 7; i >= 0 && (*bit_stream)[i] == 0;) i--;
+            for (i = 7; i >= 0 && bit_stream[i] == 0;) i--;
             byte_length = i + 1;
         }
 
         void write_to_stream(std::vector<bit> *stream) const {
-            for (int i = byte_length - 1; i >= 0; i--) stream->push_back((*bit_stream)[i]);
-            std::fill(bit_stream->begin(), bit_stream->end(), 0);
+            for (int i = byte_length - 1; i >= 0; i--) stream->push_back(bit_stream[i]);
+            std::fill(bit_stream, bit_stream + 8, 0);
         }
 
-        ~BitStream() { delete bit_stream; }
+        ~BitStream() { free(bit_stream); }
     };
 
     struct Node;
