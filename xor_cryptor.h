@@ -107,15 +107,18 @@ private:
     struct Byte {
         bit val;
         uint64_t idx, size;
-        std::vector<bit> *stream;
+        ByteStream *byte_stream;
 
         void construct(bit value) {
             val = value;
             idx = size = 0;
-            stream = new std::vector<bit>();
+            byte_stream = nullptr;
         }
 
-        ~Byte() { delete stream; }
+        void allocate_byte_stream() {
+            byte_stream = (ByteStream *) malloc(sizeof(ByteStream));
+            byte_stream->construct(size);
+        }
     };
 
     struct Node {
@@ -154,7 +157,7 @@ private:
     void d_flush_stream(uint64_t length, CipherData *pCipherData, ByteStream *exception_stream,
                         Byte **unique_byte_set, bit top, uint64_t *progress) const;
 
-    CipherData *decrypt_bytes(const bit *input, uint64_t length, const bit *key, uint64_t k_len) const;
+    CipherData *decrypt_bytes(bit *input, uint64_t length, const bit *key, uint64_t k_len) const;
 
     bool process_file(const std::string &src_path, const std::string &dest_path, const std::string &key, bool to_encrypt);
 

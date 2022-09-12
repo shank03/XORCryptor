@@ -45,7 +45,7 @@ void XorCrypt::insert_node(Byte **unique_byte_set, ByteStream *exception_stream,
         data |= next_parent;
     }
     unique_byte_set[parent]->idx++;
-    unique_byte_set[parent]->stream->push_back(data);
+    unique_byte_set[parent]->byte_stream->push_back(data);
 }
 
 template<typename OStream, typename Iterator>
@@ -62,23 +62,30 @@ void XorCrypt::e_map_bytes(bit *input, uint64_t length, ByteStream *exception_st
                            Byte **unique_byte_set, ByteStream *byte_order, uint64_t *itr) const {
     Node *pNode = new Node();
     catch_progress("Mapping Bytes", itr, length);
-    for (; *itr < length; (*itr)++) {
-        pNode->reset();
-        bit parent = input[*itr] >> 4, data = input[*itr] & 0x0F;
 
+    *itr = 0;
+    for (; *itr < length; (*itr)++) {
+        bit parent = input[*itr] >> 4;
         if (unique_byte_set[parent] == nullptr) {
             unique_byte_set[parent] = mByteSets[parent];
             byte_order->push_back(parent);
         }
-        pNode->val = data;
         unique_byte_set[parent]->size++;
+    }
+
+    for (uint64_t i = 0; i < 0x10; i++) {
+        if (unique_byte_set[i] == nullptr) continue;
+        unique_byte_set[i]->allocate_byte_stream();
+    }
+
+    *itr = 0;
+    for (; *itr < length; (*itr)++) {
+        pNode->reset();
+        bit parent = input[*itr] >> 4, data = input[*itr] & 0x0F;
+        pNode->val = data;
 
         if (*itr != length - 1) {
             bit next_parent = input[*itr + 1] >> 4;
-            if (unique_byte_set[next_parent] == nullptr) {
-                unique_byte_set[next_parent] = mByteSets[next_parent];
-                byte_order->push_back(next_parent);
-            }
             if (parent != next_parent) pNode->next = unique_byte_set[next_parent];
         }
         insert_node(unique_byte_set, exception_stream, parent, pNode, *itr);
@@ -99,8 +106,10 @@ void XorCrypt::e_flush_streams(const bit *key, uint64_t k_len, CipherData *pCiph
     *itr = 0;
     for (; *itr < byte_order->size; (*itr)++) {
         Byte *pByte = unique_byte_set[byte_order->stream[*itr]];
-        process_stream<std::vector<bit>, std::vector<bit>::iterator>(pCipherData->data, pByte->stream->begin(), pByte->stream->end(), key, &k_idx, k_len);
-        delete pByte->stream;
+        process_stream<std::vector<bit>, bit *>
+                (pCipherData->data, pByte->byte_stream->stream, pByte->byte_stream->stream + pByte->byte_stream->size, key, &k_idx, k_len);
+        free(pByte->byte_stream->stream);
+        free(pByte->byte_stream);
     }
 }
 
@@ -120,16 +129,18 @@ XorCrypt::CipherData *XorCrypt::encrypt_bytes(bit *input, uint64_t length, const
         byte_order->construct(0x10);
 
         uint64_t itr = 0;
-
         e_map_bytes(input, length, exception_stream, unique_byte_set, byte_order, &itr);
         e_flush_streams(key, k_len, pCipherData, unique_byte_set, byte_order, &itr);
 
         uint64_t k_idx = 0;
-        process_stream<std::vector<bit>, bit *>(pCipherData->data, exception_stream->stream, exception_stream->stream + exception_stream->max, key, &k_idx, k_len);
+        process_stream<std::vector<bit>, bit *>
+                (pCipherData->data, exception_stream->stream, exception_stream->stream + exception_stream->size, key, &k_idx, k_len);
 
+        free(exception_stream->stream);
         free(exception_stream);
-        free(unique_byte_set);
+        free(byte_order->stream);
         free(byte_order);
+        free(unique_byte_set);
         return pCipherData;
     } catch (std::exception &e) {
         return new CipherData(true);
@@ -155,11 +166,13 @@ void XorCrypt::d_parse_header(const bit *input, uint64_t length, const bit *key,
             byte_order->push_back(parent);
         }
         unique_byte_set[parent]->size = bits_value;
+        unique_byte_set[parent]->allocate_byte_stream();
         exception_partition += bits_value;
     }
 
     uint64_t k_idx = 0;
-    process_stream<ByteStream, const bit *>(exception_stream, input + *idx + exception_partition, input + length, key, &k_idx, k_len);
+    process_stream<ByteStream, const bit *>
+            (exception_stream, input + *idx + exception_partition, input + length, key, &k_idx, k_len);
 }
 
 void XorCrypt::d_flush_stream(uint64_t length, CipherData *pCipherData, ByteStream *exception_stream,
@@ -169,8 +182,11 @@ void XorCrypt::d_flush_stream(uint64_t length, CipherData *pCipherData, ByteStre
     uint64_t g_idx = 0;
     while (pByte->idx < pByte->size) {
         (*progress)++, g_idx++;
-        bit data = (*pByte->stream)[pByte->idx++];
-        if (pByte->idx == pByte->size) delete pByte->stream;
+        bit data = pByte->byte_stream->stream[pByte->idx++];
+        if (pByte->idx == pByte->size) {
+            free(pByte->byte_stream->stream);
+            free(pByte->byte_stream);
+        }
 
         bit val = data >> 4, next_parent = data & 0x0F;
         data = (pByte->val << 4) | val;
@@ -189,7 +205,7 @@ void XorCrypt::d_flush_stream(uint64_t length, CipherData *pCipherData, ByteStre
     }
 }
 
-XorCrypt::CipherData *XorCrypt::decrypt_bytes(const bit *input, uint64_t length, const bit *key, uint64_t k_len) const {
+XorCrypt::CipherData *XorCrypt::decrypt_bytes(bit *input, uint64_t length, const bit *key, uint64_t k_len) const {
     try {
         print_status("Started decryption");
         uint64_t k_idx = 0;
@@ -212,17 +228,19 @@ XorCrypt::CipherData *XorCrypt::decrypt_bytes(const bit *input, uint64_t length,
         for (uint64_t i = 0; i < byte_order->size; i++) {
             progress++;
             Byte *pByte = unique_byte_set[byte_order->stream[i]];
-            process_stream<std::vector<bit>, const bit *>(pByte->stream, input + idx, input + idx + pByte->size, key, &k_idx, k_len);
+            process_stream<ByteStream, const bit *>(pByte->byte_stream, input + idx, input + idx + pByte->size, key, &k_idx, k_len);
             idx += pByte->size;
         }
-        delete[] input;
+        free(input);
 
         progress = 1;
         d_flush_stream(length, pCipherData, exception_stream, unique_byte_set, byte_order->stream[0], &progress);
 
+        free(exception_stream->stream);
         free(exception_stream);
-        free(unique_byte_set);
+        free(byte_order->stream);
         free(byte_order);
+        free(unique_byte_set);
         return pCipherData;
     } catch (std::exception &e) {
         return new CipherData(true);
