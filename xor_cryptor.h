@@ -19,14 +19,15 @@
 #include <fstream>
 #include <filesystem>
 
-struct XorCrypt {
+struct XorCryptor {
 
-    typedef unsigned char bit;
+    typedef unsigned char byte;
+    typedef uint64_t byte64;
 
     struct StatusListener {
         virtual void print_status(const std::string &status) = 0;
 
-        virtual void catch_progress(const std::string &status, uint64_t *progress_ptr, uint64_t total) = 0;
+        virtual void catch_progress(const std::string &status, byte64 *progress_ptr, byte64 total) = 0;
 
         virtual ~StatusListener() = 0;
     };
@@ -35,10 +36,10 @@ private:
     StatusListener *mStatusListener = nullptr;
 
     struct CipherData {
-        std::vector<bit> *data;
+        std::vector<byte> *data;
         bool error;
 
-        explicit CipherData() : data(new std::vector<bit>()), error(false) {}
+        explicit CipherData() : data(new std::vector<byte>()), error(false) {}
 
         explicit CipherData(bool er) : data(nullptr), error(er) {}
 
@@ -51,15 +52,12 @@ private:
 
     struct BitStream {
         int byte_length;
-        uint64_t *bit_stream;
+        byte64 *bit_stream;
 
-        void construct() {
-            byte_length = 0;
-            bit_stream = nullptr;
-        }
+        BitStream() : byte_length(0), bit_stream(nullptr) {}
 
-        void to_bit_stream(uint64_t value) {
-            if (bit_stream == nullptr) bit_stream = (uint64_t *) malloc(8 * sizeof(uint64_t));
+        void to_bit_stream(byte64 value) {
+            if (bit_stream == nullptr) bit_stream = new byte64[8];
 
             if (value == 0) {
                 byte_length = 1;
@@ -70,60 +68,54 @@ private:
             std::fill(bit_stream, bit_stream + 8, value);
             int i;
             for (i = 0; i < 8; i++) {
-                bit_stream[i] >>= uint64_t(i * 8);
-                bit_stream[i] &= uint64_t(0xFF);
+                bit_stream[i] >>= byte64(i * 8);
+                bit_stream[i] &= byte64(0xFF);
             }
             for (i = 7; i >= 0 && bit_stream[i] == 0;) i--;
             byte_length = i + 1;
         }
 
-        void write_to_stream(std::vector<bit> *stream) const {
+        void write_to_stream(std::vector<byte> *stream) const {
             for (int i = byte_length - 1; i >= 0; i--) stream->push_back(bit_stream[i]);
             std::fill(bit_stream, bit_stream + 8, 0);
         }
 
-        ~BitStream() { free(bit_stream); }
+        ~BitStream() { delete[] bit_stream; }
     };
 
     struct ByteStream {
-        uint64_t max;
-        uint64_t size;
-        bit *stream;
+        byte64 max;
+        byte64 size;
+        byte *data;
 
-        void construct(uint64_t length) {
-            max = length;
-            size = 0;
-            stream = (bit *) malloc(max);
-        }
+        explicit ByteStream(byte64 length) : max(length), size(0), data(new byte[length]) {}
 
-        void push_back(bit value) {
+        void push_back(byte value) {
             if (size == max) return;
-            stream[size++] = value;
+            data[size++] = value;
         }
+
+        ~ByteStream() { delete[] data; }
     };
 
-    struct Node;
-
-    struct Byte {
-        bit val;
-        uint64_t idx, size;
+    struct ByteNode {
+        byte val;
+        byte64 idx, size;
         ByteStream *byte_stream;
 
-        void construct(bit value) {
-            val = value;
-            idx = size = 0;
-            byte_stream = nullptr;
-        }
+        explicit ByteNode(byte parent) : val(parent), idx(0), size(0), byte_stream(nullptr) {}
 
         void allocate_byte_stream() {
-            byte_stream = (ByteStream *) malloc(sizeof(ByteStream));
-            byte_stream->construct(size);
+            if (size == 0) return;
+            byte_stream = new ByteStream(size);
         }
+
+        ~ByteNode() { delete byte_stream; }
     };
 
     struct Node {
-        bit val;
-        Byte *next;
+        byte val;
+        ByteNode *next;
 
         Node() : val(0), next(nullptr) {}
 
@@ -131,33 +123,34 @@ private:
             val = 0;
             next = nullptr;
         }
+
+        ~Node() { delete next; }
     };
 
     BitStream *mBitStream;
-    Byte **mByteSets;
 
-    void write_node_property(std::vector<bit> *stream, bit parent, uint64_t value) const;
+    void write_node_property(std::vector<byte> *stream, byte parent, byte64 value) const;
 
-    static void insert_node(Byte **unique_byte_set, ByteStream *exception_stream, bit parent, Node *node, uint64_t &idx);
+    static void insert_node(ByteNode *pByte, ByteStream *exception_stream, Node *pNode, byte64 &idx);
 
     template<typename OStream, typename Iterator>
-    void process_stream(OStream *ostream, Iterator begin, Iterator end, const bit *key, uint64_t *k_idx, uint64_t k_len) const;
+    void process_stream(OStream *ostream, Iterator begin, Iterator end, const byte *cipher_key, byte64 *key_idx, byte64 key_length) const;
 
-    void e_map_bytes(bit *input, uint64_t length, ByteStream *exception_stream,
-                     Byte **unique_byte_set, ByteStream *byte_order, uint64_t *itr) const;
+    void e_map_bytes(const byte *input_bytes, byte64 input_length, ByteStream *exception_stream,
+                     ByteNode **unique_byte_set, ByteStream *byte_order, byte64 *itr) const;
 
-    void e_flush_streams(const bit *key, uint64_t k_len, CipherData *pCipherData,
-                         Byte **unique_byte_set, const ByteStream *byte_order, uint64_t *itr) const;
+    void e_flush_streams(const byte *cipher_key, byte64 key_length, CipherData *pCipherData,
+                         ByteNode **unique_byte_set, const ByteStream *byte_order, byte64 *itr) const;
 
-    CipherData *encrypt_bytes(bit *input, uint64_t length, const bit *key, uint64_t k_len) const;
+    CipherData *encrypt_bytes(const byte *input_bytes, byte64 input_length, const byte *cipher_key, byte64 key_length) const;
 
-    void d_parse_header(const bit *input, uint64_t length, const bit *key, uint64_t k_len, ByteStream *exception_stream,
-                        Byte **unique_byte_set, ByteStream *byte_order, uint64_t *idx, uint64_t *progress) const;
+    void d_parse_header(const byte *input, byte64 length, const byte *key, byte64 k_len, ByteStream *exception_stream,
+                        ByteNode **unique_byte_set, ByteStream *byte_order, byte64 *idx, byte64 *progress) const;
 
-    void d_flush_stream(uint64_t length, CipherData *pCipherData, ByteStream *exception_stream,
-                        Byte **unique_byte_set, bit top, uint64_t *progress) const;
+    void d_flush_stream(byte64 length, CipherData *pCipherData, ByteStream *exception_stream,
+                        ByteNode **unique_byte_set, byte top, byte64 *progress) const;
 
-    CipherData *decrypt_bytes(bit *input, uint64_t length, const bit *key, uint64_t k_len) const;
+    CipherData *decrypt_bytes(const byte *input_bytes, byte64 input_length, const byte *cipher_key, byte64 key_length) const;
 
     bool process_file(const std::string &src_path, const std::string &dest_path, const std::string &key, bool to_encrypt);
 
@@ -168,29 +161,15 @@ private:
         mStatusListener->print_status(status);
     }
 
-    void catch_progress(const std::string &status, uint64_t *progress_ptr, uint64_t total) const {
+    void catch_progress(const std::string &status, byte64 *progress_ptr, byte64 total) const {
         if (mStatusListener == nullptr) return;
         mStatusListener->catch_progress(status, progress_ptr, total);
     }
 
-    void print_speed(uint64_t fileSize, uint64_t time_end);
-
-    void reset_bytes() {
-        free(mBitStream);
-        free(mByteSets);
-
-        mBitStream = (BitStream *) malloc(sizeof(BitStream));
-        mBitStream->construct();
-
-        mByteSets = (Byte **) malloc(0x80);
-        for (bit i = 0; i < 0x10; i++) {
-            mByteSets[i] = (Byte *) malloc(sizeof(Byte));
-            mByteSets[i]->construct(i);
-        }
-    }
+    void print_speed(byte64 fileSize, byte64 time_end);
 
 public:
-    XorCrypt() : mStatusListener(nullptr), mBitStream(nullptr), mByteSets(nullptr) {}
+    XorCryptor() : mStatusListener(nullptr), mBitStream(new BitStream()) {}
 
     CipherData *encrypt_string(const std::string &str, const std::string &key, StatusListener *listener = nullptr);
 
@@ -200,9 +179,8 @@ public:
 
     bool decrypt_file(const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener = nullptr);
 
-    ~XorCrypt() {
-        free(mByteSets);
-        free(mBitStream);
+    ~XorCryptor() {
+        delete mBitStream;
         delete mStatusListener;
     }
 };

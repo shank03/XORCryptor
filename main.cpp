@@ -12,7 +12,7 @@ void print_help() {
     std::cout << "\t-f <file_name> - Encrypts/Decrypts only the file mentioned.\n";
 }
 
-struct Status : XorCrypt::StatusListener {
+struct Status : XorCryptor::StatusListener {
     CLIProgressIndicator *progressIndicator;
 
     explicit Status(CLIProgressIndicator *indicator) : progressIndicator(indicator) {}
@@ -30,6 +30,7 @@ struct Status : XorCrypt::StatusListener {
 int exec_cli_file(int mode, const std::string &file_name, const std::string &key) {
     auto *cli = new CLIProgressIndicator();
     auto *status = new Status(cli);
+    auto *cryptor = new XorCryptor();
     cli->start_progress();
 
     std::string dest_file_name(file_name);
@@ -41,14 +42,14 @@ int exec_cli_file(int mode, const std::string &file_name, const std::string &key
                 return 1;
             }
             dest_file_name.append(".xor");
-            res = XorCrypt().encrypt_file(file_name, dest_file_name, key, status);
+            res = cryptor->encrypt_file(file_name, dest_file_name, key, status);
         } else {
             if (dest_file_name.find(".xor") == std::string::npos) {
                 std::cout << "This file is not for decryption\n";
                 return 1;
             }
             dest_file_name = dest_file_name.substr(0, dest_file_name.length() - 4);
-            res = XorCrypt().decrypt_file(file_name, dest_file_name, key, status);
+            res = cryptor->decrypt_file(file_name, dest_file_name, key, status);
         }
     } catch (std::exception &e) {
         std::cout << "Unknown error occurred\n";
