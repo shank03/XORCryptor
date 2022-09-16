@@ -23,6 +23,7 @@ struct XorCryptor {
 
     typedef unsigned char byte;
     typedef uint64_t byte64;
+    typedef std::vector<byte> ByteStream;
 
     struct StatusListener {
         virtual void print_status(const std::string &status) = 0;
@@ -83,32 +84,12 @@ private:
         ~BitStream() { delete[] bit_stream; }
     };
 
-    struct ByteStream {
-        byte64 max;
-        byte64 size;
-        byte *data;
-
-        explicit ByteStream(byte64 length) : max(length), size(0), data(new byte[length]) {}
-
-        void push_back(byte value) {
-            if (size == max) return;
-            data[size++] = value;
-        }
-
-        ~ByteStream() { delete[] data; }
-    };
-
     struct ByteNode {
         byte val;
         byte64 idx, size;
         ByteStream *byte_stream;
 
-        explicit ByteNode(byte parent) : val(parent), idx(0), size(0), byte_stream(nullptr) {}
-
-        void allocate_byte_stream() {
-            if (size == 0) return;
-            byte_stream = new ByteStream(size);
-        }
+        explicit ByteNode(byte parent) : val(parent), idx(0), size(0), byte_stream(new ByteStream()) {}
 
         ~ByteNode() { delete byte_stream; }
     };
@@ -119,17 +100,12 @@ private:
 
         Node() : val(0), next(nullptr) {}
 
-        void reset() {
-            val = 0;
-            next = nullptr;
-        }
-
         ~Node() { delete next; }
     };
 
     BitStream *mBitStream;
 
-    void write_node_property(std::vector<byte> *stream, byte parent, byte64 value) const;
+    void write_node_property(ByteStream *stream, byte parent, byte64 value) const;
 
     static void insert_node(ByteNode *pByte, ByteStream *exception_stream, Node *pNode, byte64 &idx);
 
