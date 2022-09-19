@@ -13,6 +13,10 @@
  */
 
 #include "xor_cryptor.h"
+#include <mutex>
+#include <thread>
+#include <condition_variable>
+#include <atomic>
 
 /**
  * XORCryptor
@@ -82,7 +86,6 @@ void XorCryptor::e_map_bytes(const byte *input_bytes, byte64 input_length, ByteS
 
 void XorCryptor::e_flush_streams(const byte *cipher_key, byte64 key_length, CipherData *pCipherData,
                                  ByteNode **unique_byte_set, const ByteStream *byte_order, byte64 *itr) const {
-    byte64 key_idx = 0;
     catch_progress("Flushing byte data", itr, byte_order->size());
     pCipherData->data->push_back(static_cast<byte>(byte_order->size()));
     *itr = 0;
@@ -90,11 +93,37 @@ void XorCryptor::e_flush_streams(const byte *cipher_key, byte64 key_length, Ciph
         ByteNode *pByte = unique_byte_set[(*byte_order)[*itr]];
         write_node_property(pCipherData->data, pByte->val, pByte->size);
     }
+
+    std::mutex m;
+    std::condition_variable condition;
+    std::atomic<byte64> thread_count = 0;
+    byte64 progress = 0;
+    catch_progress("Encrypting bytes", &progress, byte_order->size());
     *itr = 0;
     for (; *itr < byte_order->size(); (*itr)++) {
         ByteNode *pByte = unique_byte_set[(*byte_order)[*itr]];
-        process_stream<ByteStream, ByteStream::iterator>
-                (pCipherData->data, pByte->byte_stream->begin(), pByte->byte_stream->end(), cipher_key, &key_idx, key_length);
+        std::thread([&thread_count, &condition, &progress](ByteNode *pByte, const byte *key, byte64 key_length) -> void {
+            byte64 key_idx = 0;
+            for (byte &i: *pByte->byte_stream) {
+                if (key_idx == key_length) key_idx = 0;
+                byte ck = key[key_idx++];
+                ck = (ck >> 4) | (ck << 4);
+                i = byte(i ^ ck);
+            }
+
+            progress++;
+            thread_count++;
+            condition.notify_all();
+        }, pByte, cipher_key, key_length).detach();
+    }
+    std::unique_lock<std::mutex> lock(m);
+    condition.wait(lock, [&]() -> bool { return thread_count == byte_order->size(); });
+
+    *itr = 0;
+    catch_progress("Concatenating encrypted bytes", itr, byte_order->size());
+    for (; *itr < byte_order->size(); (*itr)++) {
+        ByteNode *pByte = unique_byte_set[(*byte_order)[*itr]];
+        pCipherData->data->insert(pCipherData->data->end(), pByte->byte_stream->begin(), pByte->byte_stream->end());
         delete pByte;
     }
 }
@@ -189,16 +218,27 @@ XorCryptor::CipherData *XorCryptor::decrypt_bytes(const byte *input_bytes, byte6
         byte64 idx = 0, progress = 1;
         d_parse_header(input_bytes, input_length, cipher_key, key_length, exception_stream, unique_byte_set, byte_order, &idx, &progress);
 
+        std::mutex m;
+        std::condition_variable condition;
+        std::atomic<byte64> thread_count = 0;
         progress = 1;
         catch_progress("Mapping data", &progress, byte_order->size());
-        byte64 key_idx = 0;
         for (byte &i: *byte_order) {
-            progress++;
             ByteNode *pByte = unique_byte_set[i];
-            process_stream<ByteStream, const byte *>
-                    (pByte->byte_stream, input_bytes + idx, input_bytes + idx + pByte->size, cipher_key, &key_idx, key_length);
+            std::thread([&thread_count, &condition, &progress, this]
+                                (ByteNode *pByte, const byte *input_bytes, byte64 idx, const byte *cipher_key, byte64 key_length) -> void {
+                byte64 key_idx = 0;
+                process_stream<ByteStream, const byte *>
+                        (pByte->byte_stream, input_bytes + idx, input_bytes + idx + pByte->size, cipher_key, &key_idx, key_length);
+
+                progress++;
+                thread_count++;
+                condition.notify_all();
+            }, pByte, input_bytes, idx, cipher_key, key_length).detach();
             idx += pByte->size;
         }
+        std::unique_lock<std::mutex> lock(m);
+        condition.wait(lock, [&]() -> bool { return thread_count == byte_order->size(); });
         delete[] input_bytes;
 
         progress = 1;
@@ -233,8 +273,8 @@ void XorCryptor::print_speed(byte64 fileSize, byte64 time_end) {
 }
 
 bool XorCryptor::process_file(const std::string &src_path, const std::string &dest_path, const std::string &key, bool to_encrypt) {
-    std::ifstream file(src_path, std::ios::binary);
-    std::ofstream output_file(dest_path, std::ios::binary);
+    std::fstream file(src_path, std::ios::in | std::ios::binary);
+    std::fstream output_file(dest_path, std::ios::out | std::ios::binary);
     if (!file.is_open()) return false;
     if (!output_file.is_open()) return false;
 
