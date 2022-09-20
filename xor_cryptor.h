@@ -33,6 +33,8 @@ struct XorCryptor {
         virtual ~StatusListener() = 0;
     };
 
+    inline static const std::string FILE_EXTENSION = ".xor";
+
 private:
     StatusListener *mStatusListener = nullptr;
 

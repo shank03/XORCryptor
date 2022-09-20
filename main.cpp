@@ -1,4 +1,5 @@
 #include "cli.h"
+#include "xor_cryptor_lite.h"
 #include "xor_cryptor.h"
 #include <cstring>
 #include <iostream>
@@ -8,7 +9,8 @@ void print_help() {
     std::cout << "XOR Cryptor\n\n";
     std::cout << "Usage:\n - xor_cryptor -m e -f file_name\n\n";
     std::cout << "Parameters:\n";
-    std::cout << "\t-m <mode> - mode is either 'e' (encrypt) or 'd' (decrypt)\n";
+    std::cout << "\t-m <mode> - mode is either 'e0' (light weight encryption) or 'd0' (light weight decryption)\n";
+    std::cout << "\t                           'e1' (heavy encryption) or 'd1' (heavy decryption)\n";
     std::cout << "\t-f <file_name> - Encrypts/Decrypts only the file mentioned.\n";
 }
 
@@ -27,29 +29,57 @@ struct Status : XorCryptor::StatusListener {
     }
 };
 
-int exec_cli_file(int mode, const std::string &file_name, const std::string &key) {
+struct StatusLite : XorCryptorLite::StatusListener {
+    CLIProgressIndicator *progressIndicator;
+
+    explicit StatusLite(CLIProgressIndicator *indicator) : progressIndicator(indicator) {}
+
+    void print_status(const std::string &status) override {
+        progressIndicator->print_status(status);
+    }
+
+    void catch_progress(const std::string &status, uint64_t *progress_ptr, uint64_t total) override {
+        progressIndicator->update_status(status);
+        progressIndicator->catch_progress(progress_ptr, total);
+    }
+};
+
+int exec_cli_file(int mode, int weight, const std::string &file_name, const std::string &key) {
     auto *cli = new CLIProgressIndicator();
     auto *status = new Status(cli);
+    auto *status_lite = new StatusLite(cli);
     auto *cryptor = new XorCryptor();
+    auto *cryptor_lite = new XorCryptorLite();
     cli->start_progress();
 
+    if (weight) {
+        cli->print_status("Mode: Heavy");
+    } else {
+        cli->print_status("Mode: Light");
+    }
+
     std::string dest_file_name(file_name);
+    std::string extension = weight ? XorCryptor::FILE_EXTENSION : XorCryptorLite::FILE_EXTENSION;
     bool res;
     try {
         if (mode) {
-            if (dest_file_name.find(".xor") != std::string::npos) {
+            if (dest_file_name.find(extension) != std::string::npos) {
                 cli->print_status("This file is not for encryption");
                 return 1;
             }
-            dest_file_name.append(".xor");
-            res = cryptor->encrypt_file(file_name, dest_file_name, key, status);
+            dest_file_name.append(extension);
+            res = weight
+                  ? cryptor->encrypt_file(file_name, dest_file_name, key, status)
+                  : cryptor_lite->encrypt_file(file_name, dest_file_name, key, status_lite);
         } else {
-            if (dest_file_name.find(".xor") == std::string::npos) {
+            if (dest_file_name.find(extension) == std::string::npos) {
                 std::cout << "This file is not for decryption\n";
                 return 1;
             }
             dest_file_name = dest_file_name.substr(0, dest_file_name.length() - 4);
-            res = cryptor->decrypt_file(file_name, dest_file_name, key, status);
+            res = weight
+                  ? cryptor->decrypt_file(file_name, dest_file_name, key, status)
+                  : cryptor_lite->decrypt_file(file_name, dest_file_name, key, status_lite);
         }
     } catch (std::exception &e) {
         std::cout << "Unknown error occurred\n";
@@ -89,11 +119,15 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    int mode;
-    if (strcmp(m_val, "e") == 0) {
+    int mode, weight = 0 /* default: light */;
+    if (strcmp(m_val, "e") == 0 || strcmp(m_val, "e0") == 0) {
         mode = 1;
-    } else if (strcmp(m_val, "d") == 0) {
+    } else if (strcmp(m_val, "e1") == 0) {
+        mode = 1, weight = 1;
+    } else if (strcmp(m_val, "d") == 0 || strcmp(m_val, "d0") == 0) {
         mode = 0;
+    } else if (strcmp(m_val, "d1") == 0) {
+        mode = 0, weight = 1;
     } else {
         std::cout << "Invalid args for -m mode\n";
         return 1;
@@ -103,5 +137,5 @@ int main(int argc, char *argv[]) {
     std::cout << "Enter the key: ";
     std::cin >> key;
 
-    return exec_cli_file(mode, std::string(f_val), key);
+    return exec_cli_file(mode, weight, std::string(f_val), key);
 }
