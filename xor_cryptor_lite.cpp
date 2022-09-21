@@ -13,11 +13,6 @@
  */
 
 #include "xor_cryptor_lite.h"
-#include <thread>
-#include <condition_variable>
-#include <atomic>
-#include <deque>
-#include <mutex>
 
 /**
  * XORCryptor
@@ -27,8 +22,6 @@
  *
  * date: 21-Sep-2022
  */
-
-XorCryptorLite::StatusListener::~StatusListener() = default;
 
 XorCryptorLite::byte XorCryptorLite::generate_mask(byte _v) {
     byte _mask = 0, _vt = _v;
@@ -48,25 +41,6 @@ void XorCryptorLite::process_bytes(byte *_src, byte64 _src_len, const byte *_cip
         byte _k_mask = generate_mask(_cipher[key_idx++]);
         _src[i] = byte(_src[i] ^ _k_mask);
     }
-}
-
-void XorCryptorLite::print_speed(byte64 file_size, byte64 time_end) {
-    const byte64 KILO_BYTE = byte64(1024) * byte64(sizeof(unsigned char));
-    const byte64 MEGA_BYTE = byte64(1024) * KILO_BYTE;
-
-    std::string unit;
-    if (file_size >= MEGA_BYTE) {
-        unit = " MB/s";
-        file_size /= MEGA_BYTE;
-    } else {
-        unit = " KB/s";
-        file_size /= KILO_BYTE;
-    }
-
-    long double speed = (long double) file_size / time_end * 1000.0;
-    std::stringstream str_speed;
-    str_speed << std::fixed << std::setprecision(2) << speed;
-    print_status("Time taken = " + std::to_string(time_end) + " [ms] - " + str_speed.str() + unit);
 }
 
 bool XorCryptorLite::process_file(const std::string &src_path, const std::string &dest_path, const std::string &key) {

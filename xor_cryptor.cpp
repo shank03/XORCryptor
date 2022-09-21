@@ -13,10 +13,6 @@
  */
 
 #include "xor_cryptor.h"
-#include <mutex>
-#include <thread>
-#include <condition_variable>
-#include <atomic>
 
 /**
  * XORCryptor
@@ -26,8 +22,6 @@
  *
  * date: 22-Aug-2022
  */
-
-XorCryptor::StatusListener::~StatusListener() = default;
 
 void XorCryptor::write_node_property(std::vector<byte> *stream, byte parent, byte64 value) const {
     mBitStream->to_bit_stream(value);
@@ -251,25 +245,6 @@ XorCryptor::CipherData *XorCryptor::decrypt_bytes(const byte *input_bytes, byte6
     } catch (std::exception &e) {
         return new CipherData(true);
     }
-}
-
-void XorCryptor::print_speed(byte64 fileSize, byte64 time_end) {
-    const byte64 KILO_BYTE = byte64(1024) * byte64(sizeof(unsigned char));
-    const byte64 MEGA_BYTE = byte64(1024) * KILO_BYTE;
-
-    std::string unit;
-    if (fileSize >= MEGA_BYTE) {
-        unit = " MB/s";
-        fileSize /= MEGA_BYTE;
-    } else {
-        unit = " KB/s";
-        fileSize /= KILO_BYTE;
-    }
-
-    long double speed = (long double) fileSize / time_end * 1000.0;
-    std::stringstream str_speed;
-    str_speed << std::fixed << std::setprecision(2) << speed;
-    print_status("Time taken = " + std::to_string(time_end) + " [ms] - " + str_speed.str() + unit);
 }
 
 bool XorCryptor::process_file(const std::string &src_path, const std::string &dest_path, const std::string &key, bool to_encrypt) {

@@ -15,58 +15,31 @@
 #ifndef XOR_CRYPTOR_LITE_H
 #define XOR_CRYPTOR_LITE_H
 
-#include <vector>
-#include <fstream>
-#include <filesystem>
+#include "xor_cryptor_base.h"
 #include "file_manager.h"
 
-struct XorCryptorLite {
-
-    typedef unsigned char byte;
-    typedef uint64_t byte64;
-
-    inline static const std::string FILE_EXTENSION = ".xrl";
-
-    struct StatusListener {
-        virtual void print_status(const std::string &status) = 0;
-
-        virtual void catch_progress(const std::string &status, byte64 *progress_ptr, byte64 total) = 0;
-
-        virtual ~StatusListener() = 0;
-    };
-
+class XorCryptorLite : private XorCryptor_Base {
 private:
-    StatusListener *mStatusListener = nullptr;
     FileManager *fileManager = nullptr;
 
     static byte generate_mask(byte _v);
 
-    static void process_bytes(byte *_src, byte64 _src_len, const byte *_cipher, byte64 _c_len) ;
-
-    void print_status(const std::string &status) const {
-        if (mStatusListener == nullptr) return;
-        mStatusListener->print_status(status);
-    }
-
-    void catch_progress(const std::string &status, byte64 *progress_ptr, byte64 total) const {
-        if (mStatusListener == nullptr) return;
-        mStatusListener->catch_progress(status, progress_ptr, total);
-    }
-
-    void print_speed(byte64 file_size, byte64 time_end);
+    static void process_bytes(byte *_src, byte64 _src_len, const byte *_cipher, byte64 _c_len);
 
     bool process_file(const std::string &src_path, const std::string &dest_path, const std::string &key);
 
 public:
-    XorCryptorLite() : mStatusListener(nullptr) {}
+    inline static const std::string FILE_EXTENSION = ".xrl";
+
+    XorCryptorLite() { mStatusListener = nullptr; }
 
     void encrypt_string(const std::string &str, const std::string &key, std::string *dest, StatusListener *listener = nullptr);
 
-    bool encrypt_file(const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener = nullptr);
+    bool encrypt_file(const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener) override;
 
     void decrypt_string(const std::string &str, const std::string &key, std::string *dest, StatusListener *listener = nullptr);
 
-    bool decrypt_file(const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener = nullptr);
+    bool decrypt_file(const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener) override;
 
     ~XorCryptorLite() { delete mStatusListener; }
 };

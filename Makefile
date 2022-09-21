@@ -37,7 +37,8 @@ uninstall:
 	sudo rm -rf /usr/bin/xor_cryptor
 endif
 
-$(TARGET): $(BUILD_DIR)/main.o $(BUILD_DIR)/cli.o $(BUILD_DIR)/xor_cryptor.o $(BUILD_DIR)/xor_cryptor_lite.o $(BUILD_DIR)/file_manager.o
+$(TARGET): $(BUILD_DIR)/main.o $(BUILD_DIR)/cli.o $(BUILD_DIR)/file_manager.o \
+ 			$(BUILD_DIR)/xor_cryptor_base.o $(BUILD_DIR)/xor_cryptor.o $(BUILD_DIR)/xor_cryptor_lite.o
 	$(shell if [ ! -d "$(BIN_DIR)" ]; then\
 	    mkdir "$(BIN_DIR)";\
 	fi)
@@ -51,6 +52,7 @@ $(BUILD_DIR)/%.o: %.cpp
 
 $(BUILD_DIR)/xor_cryptor.o: xor_cryptor.cpp xor_cryptor.h
 $(BUILD_DIR)/xor_cryptor_lite.o: xor_cryptor_lite.cpp xor_cryptor_lite.h
+$(BUILD_DIR)/xor_cryptor_base.o: xor_cryptor_base.cpp xor_cryptor_base.h
 $(BUILD_DIR)/file_manager.o: file_manager.cpp file_manager.h
 $(BUILD_DIR)/cli.o: cli.cpp cli.h
 $(BUILD_DIR)/main.o: main.cpp

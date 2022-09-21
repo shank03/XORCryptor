@@ -15,29 +15,10 @@
 #ifndef XOR_CRYPTOR_H
 #define XOR_CRYPTOR_H
 
-#include <vector>
-#include <fstream>
-#include <filesystem>
+#include "xor_cryptor_base.h"
 
-struct XorCryptor {
-
-    typedef unsigned char byte;
-    typedef uint64_t byte64;
-    typedef std::vector<byte> ByteStream;
-
-    struct StatusListener {
-        virtual void print_status(const std::string &status) = 0;
-
-        virtual void catch_progress(const std::string &status, byte64 *progress_ptr, byte64 total) = 0;
-
-        virtual ~StatusListener() = 0;
-    };
-
-    inline static const std::string FILE_EXTENSION = ".xor";
-
+class XorCryptor : private XorCryptor_Base {
 private:
-    StatusListener *mStatusListener = nullptr;
-
     struct CipherData {
         std::vector<byte> *data;
         bool error;
@@ -134,32 +115,24 @@ private:
 
     CipherData *process_string(const std::string &str, const std::string &key, bool to_encrypt);
 
-    void print_status(const std::string &status) const {
-        if (mStatusListener == nullptr) return;
-        mStatusListener->print_status(status);
-    }
-
-    void catch_progress(const std::string &status, byte64 *progress_ptr, byte64 total) const {
-        if (mStatusListener == nullptr) return;
-        mStatusListener->catch_progress(status, progress_ptr, total);
-    }
-
-    void print_speed(byte64 fileSize, byte64 time_end);
-
 public:
-    XorCryptor() : mStatusListener(nullptr), mBitStream(new BitStream()) {}
+    inline static const std::string FILE_EXTENSION = ".xor";
+
+    XorCryptor() {
+        mStatusListener = nullptr;
+        mBitStream = new BitStream();
+    }
 
     CipherData *encrypt_string(const std::string &str, const std::string &key, StatusListener *listener = nullptr);
 
-    bool encrypt_file(const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener = nullptr);
+    bool encrypt_file(const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener) override;
 
     CipherData *decrypt_string(const std::string &str, const std::string &key, StatusListener *listener = nullptr);
 
-    bool decrypt_file(const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener = nullptr);
+    bool decrypt_file(const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener) override;
 
     ~XorCryptor() {
         delete mBitStream;
-        delete mStatusListener;
     }
 };
 

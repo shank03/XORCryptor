@@ -1,5 +1,6 @@
 #include "cli.h"
 #include "xor_cryptor_lite.h"
+#include "xor_cryptor_base.h"
 #include "xor_cryptor.h"
 #include <cstring>
 #include <iostream>
@@ -14,7 +15,7 @@ void print_help() {
     std::cout << "\t-f <file_name> - Encrypts/Decrypts only the file mentioned.\n";
 }
 
-struct Status : XorCryptor::StatusListener {
+struct Status : XorCryptor_Base::StatusListener {
     CLIProgressIndicator *progressIndicator;
 
     explicit Status(CLIProgressIndicator *indicator) : progressIndicator(indicator) {}
@@ -29,25 +30,9 @@ struct Status : XorCryptor::StatusListener {
     }
 };
 
-struct StatusLite : XorCryptorLite::StatusListener {
-    CLIProgressIndicator *progressIndicator;
-
-    explicit StatusLite(CLIProgressIndicator *indicator) : progressIndicator(indicator) {}
-
-    void print_status(const std::string &status) override {
-        progressIndicator->print_status(status);
-    }
-
-    void catch_progress(const std::string &status, uint64_t *progress_ptr, uint64_t total) override {
-        progressIndicator->update_status(status);
-        progressIndicator->catch_progress(progress_ptr, total);
-    }
-};
-
 int exec_cli_file(int mode, int weight, const std::string &file_name, const std::string &key) {
     auto *cli = new CLIProgressIndicator();
     auto *status = new Status(cli);
-    auto *status_lite = new StatusLite(cli);
     auto *cryptor = new XorCryptor();
     auto *cryptor_lite = new XorCryptorLite();
     cli->start_progress();
@@ -70,7 +55,7 @@ int exec_cli_file(int mode, int weight, const std::string &file_name, const std:
             dest_file_name.append(extension);
             res = weight
                   ? cryptor->encrypt_file(file_name, dest_file_name, key, status)
-                  : cryptor_lite->encrypt_file(file_name, dest_file_name, key, status_lite);
+                  : cryptor_lite->encrypt_file(file_name, dest_file_name, key, status);
         } else {
             if (dest_file_name.find(extension) == std::string::npos) {
                 std::cout << "This file is not for decryption\n";
@@ -79,7 +64,7 @@ int exec_cli_file(int mode, int weight, const std::string &file_name, const std:
             dest_file_name = dest_file_name.substr(0, dest_file_name.length() - 4);
             res = weight
                   ? cryptor->decrypt_file(file_name, dest_file_name, key, status)
-                  : cryptor_lite->decrypt_file(file_name, dest_file_name, key, status_lite);
+                  : cryptor_lite->decrypt_file(file_name, dest_file_name, key, status);
         }
     } catch (std::exception &e) {
         std::cout << "Unknown error occurred\n";
