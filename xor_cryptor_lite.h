@@ -41,7 +41,7 @@ private:
 
     static byte generate_mask(byte _v);
 
-    void process_bytes(byte *_src, byte64 _src_len, const byte *_cipher, byte64 _c_len) const;
+    static void process_bytes(byte *_src, byte64 _src_len, const byte *_cipher, byte64 _c_len) ;
 
     void print_status(const std::string &status) const {
         if (mStatusListener == nullptr) return;

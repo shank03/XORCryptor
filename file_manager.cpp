@@ -51,7 +51,6 @@ void FileManager::dispatch_writer_thread() {
             while (buffer_pool[curr_chunk_id] == nullptr) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(50));
             }
-            std::cout << "Writing #" << curr_chunk_id << "\n";
             _out_file.write((char *) buffer_pool[curr_chunk_id], std::streamsize(buffer_length[curr_chunk_id]));
             delete[] buffer_pool[curr_chunk_id];
             buffer_pool[curr_chunk_id] = nullptr;
