@@ -18,6 +18,7 @@
 #include <vector>
 #include <fstream>
 #include <filesystem>
+#include "file_manager.h"
 
 struct XorCryptorLite {
 
@@ -36,10 +37,11 @@ struct XorCryptorLite {
 
 private:
     StatusListener *mStatusListener = nullptr;
+    FileManager *fileManager = nullptr;
 
     static byte generate_mask(byte _v);
 
-    void process_bytes(byte *_src, byte64 _src_len, const byte *_cipher, byte64 _c_len, byte64 *itr) const;
+    void process_bytes(byte *_src, byte64 _src_len, const byte *_cipher, byte64 _c_len) const;
 
     void print_status(const std::string &status) const {
         if (mStatusListener == nullptr) return;

@@ -1,8 +1,29 @@
-//
-// Created by shash on 9/21/2022.
-//
+#ifndef CLI_PROGRESS_INDICATOR
+#define CLI_PROGRESS_INDICATOR
 
-#ifndef XORCRYPTORCLI_CLI_H
-#define XORCRYPTORCLI_CLI_H
+#include <string>
+#include <thread>
 
-#endif //XORCRYPTORCLI_CLI_H
+class CLIProgressIndicator {
+    std::string mPreIndicatorText;
+    bool mRunIndicator = false;
+
+    uint64_t *mProgress = nullptr;
+    long double mTotal = 0;
+
+    std::thread *mProgressThread = nullptr;
+
+public:
+    void start_progress();
+
+    void stop_progress();
+
+    void print_status(const std::string &status);
+
+    void update_status(const std::string &stat);
+
+    void catch_progress(uint64_t *progress, long double total);
+};
+
+
+#endif //CLI_PROGRESS_INDICATOR

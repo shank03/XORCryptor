@@ -13,6 +13,11 @@
  */
 
 #include "xor_cryptor_lite.h"
+#include <thread>
+#include <condition_variable>
+#include <atomic>
+#include <deque>
+#include <mutex>
 
 /**
  * XORCryptor
@@ -33,17 +38,15 @@ XorCryptorLite::byte XorCryptorLite::generate_mask(byte _v) {
     }
     _mask |= byte((8 - _mask) << 4);
     _mask = byte(_mask ^ ((_mask >> 4) | (_mask << 4)));
-//    _mask = byte(_mask ^ ((_v >> 4) | (_v << 4)));
     return byte(_mask ^ _v);
 }
 
-void XorCryptorLite::process_bytes(byte *_src, byte64 _src_len, const byte *_cipher, byte64 _c_len, byte64 *itr) const {
+void XorCryptorLite::process_bytes(byte *_src, byte64 _src_len, const byte *_cipher, byte64 _c_len) const {
     byte64 key_idx = 0;
-    catch_progress("Processing bytes", itr, _src_len);
-    for (; *itr < _src_len; (*itr)++) {
+    for (byte64 i = 0; i < _src_len; i++) {
         if (key_idx == _c_len) key_idx = 0;
         byte _k_mask = generate_mask(_cipher[key_idx++]);
-        _src[*itr] = byte(_src[*itr] ^ _k_mask);
+        _src[i] = byte(_src[i] ^ _k_mask);
     }
 }
 
@@ -67,36 +70,58 @@ void XorCryptorLite::print_speed(byte64 file_size, byte64 time_end) {
 }
 
 bool XorCryptorLite::process_file(const std::string &src_path, const std::string &dest_path, const std::string &key) {
-    std::fstream file(src_path, std::ios::in | std::ios::binary);
-    std::fstream output_file(dest_path, std::ios::out | std::ios::binary);
-    if (!file.is_open()) return false;
-    if (!output_file.is_open()) return false;
-
-    catch_progress("Reading file", nullptr, 0);
-    file.seekg(0, std::ios::end);
-    auto input_length = file.tellg();
-    byte *input = new byte[input_length];
-
-    file.seekg(0, std::ios::beg);
-    file.read((char *) input, input_length);
-    file.close();
-
-    print_status("File size: " + std::to_string(input_length) + " bytes");
+    fileManager = new FileManager(src_path, dest_path);
+    if (!fileManager->is_opened()) return false;
 
     byte *cipher_key = new byte[key.length()];
     for (byte64 i = 0; i < key.length(); i++) cipher_key[i] = key[i];
 
-    std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-    byte64 itr = 0;
-    process_bytes(input, input_length, cipher_key, key.length(), &itr);
-    byte64 time_end = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - begin).count();
-    print_speed(input_length, time_end);
+    byte64 file_length = std::filesystem::file_size(src_path);
+    byte64 chunk_size = file_length / std::thread::hardware_concurrency();
+    byte64 total_chunks = file_length / chunk_size;
+    byte64 last_chunk = file_length % chunk_size;
+    if (last_chunk != 0) {
+        total_chunks++;
+    } else {
+        last_chunk = chunk_size;
+    }
+    fileManager->init_write_chunks(total_chunks);
 
-    catch_progress("Writing file", nullptr, 0);
-    output_file.write((char *) input, std::streamsize(input_length));
-    output_file.close();
-    delete[] input;
-    return !file.is_open() && !output_file.is_open();
+    std::mutex m;
+    std::condition_variable condition;
+    std::atomic<byte64> thread_count = 0;
+
+    byte **buffer_pool = new byte *[total_chunks];
+    std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+    fileManager->dispatch_writer_thread();
+    for (byte64 chunk = 0; chunk < total_chunks; chunk++) {
+        byte64 chunk_length = chunk == total_chunks - 1 ? last_chunk : chunk_size;
+        buffer_pool[chunk] = new byte[chunk_length];
+        fileManager->read_file(buffer_pool[chunk], chunk_length);
+
+        print_status("Processing #" + std::to_string(chunk));
+        std::thread([&thread_count, &condition, this]
+                            (byte *_src, byte64 _s_len, byte *_cipher, byte64 _c_len, byte64 chunk_idx) -> void {
+            process_bytes(_src, _s_len, _cipher, _c_len);
+            if (fileManager != nullptr) {
+                fileManager->write_chunk(_src, _s_len, chunk_idx);
+            } else {
+                print_status("File manager null #" + std::to_string(chunk_idx));
+            }
+
+            thread_count++;
+            condition.notify_all();
+        }, buffer_pool[chunk], chunk_length, cipher_key, key.length(), chunk).detach();
+    }
+    std::unique_lock<std::mutex> lock(m);
+    condition.wait(lock, [&]() -> bool { return thread_count == total_chunks; });
+    fileManager->wait_writer_thread();
+    delete[] buffer_pool;
+    bool close_res = fileManager->close_file();
+
+    byte64 time_end = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - begin).count();
+    print_speed(file_length, time_end);
+    return close_res;
 }
 
 void XorCryptorLite::encrypt_string(const std::string &str, const std::string &key, std::string *dest, StatusListener *listener) {
@@ -106,8 +131,7 @@ void XorCryptorLite::encrypt_string(const std::string &str, const std::string &k
     for (byte64 i = 0; i < str.length(); i++) input[i] = str[i];
     for (byte64 i = 0; i < key.length(); i++) cipher_key[i] = key[i];
 
-    byte64 itr = 0;
-    process_bytes(input, str.length(), cipher_key, key.length(), &itr);
+    process_bytes(input, str.length(), cipher_key, key.length());
     for (byte64 i = 0; i < str.length(); i++) dest->push_back((char) input[i]);
     delete[] input;
     delete[] cipher_key;
@@ -125,8 +149,7 @@ void XorCryptorLite::decrypt_string(const std::string &str, const std::string &k
     for (byte64 i = 0; i < str.length(); i++) input[i] = str[i];
     for (byte64 i = 0; i < key.length(); i++) cipher_key[i] = key[i];
 
-    byte64 itr = 0;
-    process_bytes(input, str.length(), cipher_key, key.length(), &itr);
+    process_bytes(input, str.length(), cipher_key, key.length());
     for (byte64 i = 0; i < str.length(); i++) dest->push_back((char) input[i]);
     delete[] input;
     delete[] cipher_key;
