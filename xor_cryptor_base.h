@@ -15,18 +15,18 @@
 #ifndef XOR_CRYPTOR_BASE_H
 #define XOR_CRYPTOR_BASE_H
 
-#include <vector>
-#include <fstream>
-#include <filesystem>
-#include <thread>
-#include <condition_variable>
 #include <atomic>
+#include <condition_variable>
+#include <filesystem>
+#include <fstream>
 #include <mutex>
+#include <thread>
+#include <vector>
 
 class XorCryptor_Base {
 public:
-    typedef unsigned char byte;
-    typedef uint64_t byte64;
+    typedef unsigned char     byte;
+    typedef uint64_t          byte64;
     typedef std::vector<byte> ByteStream;
 
     struct StatusListener {
@@ -46,9 +46,7 @@ protected:
 
     void print_speed(byte64 fileSize, byte64 time_end);
 
-    ~XorCryptor_Base() {
-        delete mStatusListener;
-    }
+    ~XorCryptor_Base() { delete mStatusListener; }
 
 public:
     virtual bool encrypt_file(const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener) = 0;
@@ -56,4 +54,4 @@ public:
     virtual bool decrypt_file(const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener) = 0;
 };
 
-#endif //XOR_CRYPTOR_BASE_H
+#endif    // XOR_CRYPTOR_BASE_H

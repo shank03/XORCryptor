@@ -1,10 +1,12 @@
-#include "cli.h"
-#include "xor_cryptor_lite.h"
-#include "xor_cryptor_base.h"
-#include "xor_cryptor.h"
+#include <unistd.h>
+
 #include <cstring>
 #include <iostream>
-#include <unistd.h>
+
+#include "cli.h"
+#include "xor_cryptor.h"
+#include "xor_cryptor_base.h"
+#include "xor_cryptor_lite.h"
 
 void print_help() {
     std::cout << "XOR Cryptor\n\n";
@@ -31,9 +33,9 @@ struct Status : XorCryptor_Base::StatusListener {
 };
 
 int exec_cli_file(int mode, int weight, const std::string &file_name, const std::string &key) {
-    auto *cli = new CLIProgressIndicator();
-    auto *status = new Status(cli);
-    auto *cryptor = new XorCryptor();
+    auto *cli          = new CLIProgressIndicator();
+    auto *status       = new Status(cli);
+    auto *cryptor      = new XorCryptor();
     auto *cryptor_lite = new XorCryptorLite();
     cli->start_progress();
 
@@ -45,7 +47,7 @@ int exec_cli_file(int mode, int weight, const std::string &file_name, const std:
 
     std::string dest_file_name(file_name);
     std::string extension = weight ? XorCryptor::FILE_EXTENSION : XorCryptorLite::FILE_EXTENSION;
-    bool res;
+    bool        res;
     try {
         if (mode) {
             if (dest_file_name.find(extension) != std::string::npos) {
@@ -53,18 +55,16 @@ int exec_cli_file(int mode, int weight, const std::string &file_name, const std:
                 return 1;
             }
             dest_file_name.append(extension);
-            res = weight
-                  ? cryptor->encrypt_file(file_name, dest_file_name, key, status)
-                  : cryptor_lite->encrypt_file(file_name, dest_file_name, key, status);
+            res = weight ? cryptor->encrypt_file(file_name, dest_file_name, key, status)
+                         : cryptor_lite->encrypt_file(file_name, dest_file_name, key, status);
         } else {
             if (dest_file_name.find(extension) == std::string::npos) {
                 std::cout << "This file is not for decryption\n";
                 return 1;
             }
             dest_file_name = dest_file_name.substr(0, dest_file_name.length() - 4);
-            res = weight
-                  ? cryptor->decrypt_file(file_name, dest_file_name, key, status)
-                  : cryptor_lite->decrypt_file(file_name, dest_file_name, key, status);
+            res            = weight ? cryptor->decrypt_file(file_name, dest_file_name, key, status)
+                                    : cryptor_lite->decrypt_file(file_name, dest_file_name, key, status);
         }
     } catch (std::exception &e) {
         std::cout << "Unknown error occurred\n";
@@ -72,9 +72,9 @@ int exec_cli_file(int mode, int weight, const std::string &file_name, const std:
         return 1;
     }
     cli->stop_progress();
-    std::cout << (res ?
-                  (mode ? "Encryption complete -> " + dest_file_name : "Decryption complete -> " + dest_file_name) :
-                  (mode ? "Encryption failed" : "Decryption failed")) << "\n";
+    std::cout << (res ? (mode ? "Encryption complete -> " + dest_file_name : "Decryption complete -> " + dest_file_name)
+                      : (mode ? "Encryption failed" : "Decryption failed"))
+              << "\n";
     return 0;
 }
 
@@ -82,10 +82,11 @@ int main(int argc, char *argv[]) {
     char *m_val = nullptr, *f_val = nullptr;
     opterr = 0;
 
-    if (argc == 1 || (argc == 2 &&
-                      (strcmp(argv[1], "-h") == 0 ||
-                       strcmp(argv[1], "-help") == 0 ||
-                       strcmp(argv[1], "--help") == 0))) {
+    if (argc == 1
+        || (argc == 2
+            && (strcmp(argv[1], "-h") == 0
+                || strcmp(argv[1], "-help") == 0
+                || strcmp(argv[1], "--help") == 0))) {
         print_help();
         return 0;
     }

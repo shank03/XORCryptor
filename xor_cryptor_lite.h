@@ -15,8 +15,8 @@
 #ifndef XOR_CRYPTOR_LITE_H
 #define XOR_CRYPTOR_LITE_H
 
-#include "xor_cryptor_base.h"
 #include "file_manager.h"
+#include "xor_cryptor_base.h"
 
 class XorCryptorLite : private XorCryptor_Base {
 private:
@@ -44,4 +44,4 @@ public:
     ~XorCryptorLite() { delete mStatusListener; }
 };
 
-#endif //XOR_CRYPTOR_LITE_H
+#endif    // XOR_CRYPTOR_LITE_H

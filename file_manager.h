@@ -15,31 +15,29 @@
 #ifndef FILE_MANAGER_H
 #define FILE_MANAGER_H
 
+#include <atomic>
+#include <condition_variable>
 #include <fstream>
 #include <mutex>
 #include <thread>
-#include <condition_variable>
-#include <atomic>
 
 class FileManager {
-
     typedef unsigned char byte;
-    typedef uint64_t byte64;
+    typedef uint64_t      byte64;
 
 private:
-    std::mutex _file_lock;
-
+    std::mutex   _file_lock;
     std::fstream _src_file, _out_file;
-    byte **buffer_pool = nullptr;
+
+    byte  **buffer_pool   = nullptr;
     byte64 *buffer_length = nullptr;
+    byte64  _num_chunks   = 0;
+    bool    is_open       = false;
 
-    byte64 _num_chunks = 0;
-    bool is_open = false;
-
-    std::mutex thread_m;
+    std::mutex              thread_m;
     std::condition_variable condition;
-    std::atomic<bool> thread_complete = false;
-    std::thread *file_writer_thread = nullptr;
+    std::atomic<bool>       thread_complete    = false;
+    std::thread            *file_writer_thread = nullptr;
 
 public:
     FileManager(const std::string &src_path, const std::string &dest_path) {
@@ -70,4 +68,4 @@ public:
     }
 };
 
-#endif //FILE_MANAGER_H
+#endif    // FILE_MANAGER_H

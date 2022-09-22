@@ -20,25 +20,28 @@
 class XorCryptor : private XorCryptor_Base {
 private:
     struct CipherData {
+        bool               error;
         std::vector<byte> *data;
-        bool error;
 
-        explicit CipherData() : data(new std::vector<byte>()), error(false) {}
+        explicit CipherData() : error(false),
+                                data(new std::vector<byte>()) {}
 
-        explicit CipherData(bool er) : data(nullptr), error(er) {}
+        explicit CipherData(bool er) : error(er),
+                                       data(nullptr) {}
 
         void extract_string(std::string *dest) const {
             if (data == nullptr) return;
-            for (auto i: *data) dest->push_back(reinterpret_cast<char &>(i));
+            for (auto i : *data) dest->push_back(reinterpret_cast<char &>(i));
             delete data;
         }
     };
 
     struct BitStream {
-        int byte_length;
+        int     byte_length;
         byte64 *bit_stream;
 
-        BitStream() : byte_length(0), bit_stream(nullptr) {}
+        BitStream() : byte_length(0),
+                      bit_stream(nullptr) {}
 
         void to_bit_stream(byte64 value) {
             if (bit_stream == nullptr) bit_stream = new byte64[8];
@@ -68,20 +71,24 @@ private:
     };
 
     struct ByteNode {
-        byte val;
-        byte64 idx, size;
+        byte        val;
+        byte64      idx, size;
         ByteStream *byte_stream;
 
-        explicit ByteNode(byte parent) : val(parent), idx(0), size(0), byte_stream(new ByteStream()) {}
+        explicit ByteNode(byte parent) : val(parent),
+                                         idx(0),
+                                         size(0),
+                                         byte_stream(new ByteStream()) {}
 
         ~ByteNode() { delete byte_stream; }
     };
 
     struct Node {
-        byte val;
+        byte      val;
         ByteNode *next;
 
-        Node() : val(0), next(nullptr) {}
+        Node() : val(0),
+                 next(nullptr) {}
 
         ~Node() { delete next; }
     };
@@ -92,7 +99,7 @@ private:
 
     static void insert_node(ByteNode *pByte, ByteStream *exception_stream, Node *pNode, byte64 &idx);
 
-    template<typename OStream, typename Iterator>
+    template <typename OStream, typename Iterator>
     void process_stream(OStream *ostream, Iterator begin, Iterator end, const byte *cipher_key, byte64 *key_idx, byte64 key_length) const;
 
     void e_map_bytes(const byte *input_bytes, byte64 input_length, ByteStream *exception_stream,
@@ -120,7 +127,7 @@ public:
 
     XorCryptor() {
         mStatusListener = nullptr;
-        mBitStream = new BitStream();
+        mBitStream      = new BitStream();
     }
 
     CipherData *encrypt_string(const std::string &str, const std::string &key, StatusListener *listener = nullptr);
@@ -131,9 +138,7 @@ public:
 
     bool decrypt_file(const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener) override;
 
-    ~XorCryptor() {
-        delete mBitStream;
-    }
+    ~XorCryptor() { delete mBitStream; }
 };
 
-#endif //XOR_CRYPTOR_H
+#endif    // XOR_CRYPTOR_H

@@ -39,7 +39,7 @@ void XorCryptorLite::process_bytes(byte *_src, byte64 _src_len, const byte *_cip
     for (byte64 i = 0; i < _src_len; i++) {
         if (key_idx == _c_len) key_idx = 0;
         byte _k_mask = generate_mask(_cipher[key_idx++]);
-        _src[i] = byte(_src[i] ^ _k_mask);
+        _src[i]      = byte(_src[i] ^ _k_mask);
     }
 }
 
@@ -50,10 +50,10 @@ bool XorCryptorLite::process_file(const std::string &src_path, const std::string
     byte *cipher_key = new byte[key.length()];
     for (byte64 i = 0; i < key.length(); i++) cipher_key[i] = key[i];
 
-    byte64 file_length = std::filesystem::file_size(src_path);
-    byte64 chunk_size = file_length / byte64(std::thread::hardware_concurrency() - 1);
+    byte64 file_length  = std::filesystem::file_size(src_path);
+    byte64 chunk_size   = file_length / byte64(std::thread::hardware_concurrency() - 1);
     byte64 total_chunks = file_length / chunk_size;
-    byte64 last_chunk = file_length % chunk_size;
+    byte64 last_chunk   = file_length % chunk_size;
     if (last_chunk != 0) {
         total_chunks++;
     } else {
@@ -61,34 +61,36 @@ bool XorCryptorLite::process_file(const std::string &src_path, const std::string
     }
     fileManager->init_write_chunks(total_chunks);
 
-    std::mutex m;
+    std::mutex              m;
+    std::atomic<byte64>     thread_count = 0;
     std::condition_variable condition;
-    std::atomic<byte64> thread_count = 0;
 
-    byte **buffer_pool = new byte *[total_chunks];
-    std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+    std::chrono::steady_clock::time_point begin       = std::chrono::steady_clock::now();
+    byte                                **buffer_pool = new byte *[total_chunks];
     fileManager->dispatch_writer_thread();
 
     byte64 chunk = 0;
     catch_progress("Processing chunks", &chunk, total_chunks);
     for (; chunk < total_chunks; chunk++) {
         byte64 chunk_length = chunk == total_chunks - 1 ? last_chunk : chunk_size;
-        buffer_pool[chunk] = new byte[chunk_length];
+        buffer_pool[chunk]  = new byte[chunk_length];
         fileManager->read_file(buffer_pool[chunk], chunk_length);
 
-        std::thread([&thread_count, &condition, this]
-                            (byte *_src, byte64 _s_len, byte *_cipher, byte64 _c_len, byte64 chunk_idx) -> void {
-            process_bytes(_src, _s_len, _cipher, _c_len);
-            if (fileManager != nullptr) {
-                print_status("Queued chunk #" + std::to_string(chunk_idx));
-                fileManager->write_chunk(_src, _s_len, chunk_idx);
-            } else {
-                print_status("File manager null #" + std::to_string(chunk_idx));
-            }
+        std::thread(
+                [&thread_count, &condition, this](byte *_src, byte64 _s_len, byte *_cipher, byte64 _c_len, byte64 chunk_idx) -> void {
+                    process_bytes(_src, _s_len, _cipher, _c_len);
+                    if (fileManager != nullptr) {
+                        print_status("Queued chunk #" + std::to_string(chunk_idx));
+                        fileManager->write_chunk(_src, _s_len, chunk_idx);
+                    } else {
+                        print_status("File manager null #" + std::to_string(chunk_idx));
+                    }
 
-            thread_count++;
-            condition.notify_all();
-        }, buffer_pool[chunk], chunk_length, cipher_key, key.length(), chunk).detach();
+                    thread_count++;
+                    condition.notify_all();
+                },
+                buffer_pool[chunk], chunk_length, cipher_key, key.length(), chunk)
+                .detach();
     }
     std::unique_lock<std::mutex> lock(m);
     condition.wait(lock, [&]() -> bool { return thread_count == total_chunks; });

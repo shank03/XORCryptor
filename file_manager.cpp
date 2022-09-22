@@ -33,7 +33,7 @@ void FileManager::write_chunk(FileManager::byte *buff, FileManager::byte64 buff_
     std::lock_guard<std::mutex> lock_guard(_file_lock);
 
     if (buffer_pool[chunk_id] != nullptr) return;
-    buffer_pool[chunk_id] = buff;
+    buffer_pool[chunk_id]   = buff;
     buffer_length[chunk_id] = buff_len;
 }
 

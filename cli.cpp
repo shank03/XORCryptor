@@ -1,6 +1,7 @@
 #include "cli.h"
-#include <iostream>
+
 #include <iomanip>
+#include <iostream>
 #include <vector>
 
 void CLIProgressIndicator::start_progress() {
@@ -8,8 +9,8 @@ void CLIProgressIndicator::start_progress() {
     mRunIndicator = true;
 
     mProgressThread = new std::thread([this]() -> void {
-        std::vector<std::string> progress_indicator{"-", "\\", "|", "/"};
-        int idx = 0, last_len = (int) mPreIndicatorText.length();
+        std::vector<std::string> progress_indicator { "-", "\\", "|", "/" };
+        int                      idx = 0, last_len = (int) mPreIndicatorText.length();
         while (mRunIndicator) {
             if (idx == (int) progress_indicator.size()) idx = 0;
 
@@ -21,8 +22,8 @@ void CLIProgressIndicator::start_progress() {
             if (mProgress != nullptr && mTotal != 0) {
                 len += 20;
 
-                long double upper = *mProgress;
-                upper = std::min(upper, mTotal);
+                long double upper      = *mProgress;
+                upper                  = std::min(upper, mTotal);
                 long double percentage = (upper * 100.0) / mTotal;
 
                 std::cout << " [ " << std::fixed << std::setprecision(2) << percentage << " / 100 ]";
@@ -52,11 +53,12 @@ void CLIProgressIndicator::update_status(const std::string &stat) {
 
 void CLIProgressIndicator::catch_progress(uint64_t *progress, long double total) {
     mProgress = progress;
-    mTotal = total;
+    mTotal    = total;
 }
 
 void CLIProgressIndicator::stop_progress() {
     mRunIndicator = false;
-    mProgress = nullptr;
-    while (mProgressThread != nullptr);
+    mProgress     = nullptr;
+    while (mProgressThread != nullptr)
+        ;
 }

@@ -17,8 +17,8 @@ Nodejs/package-lock.json
 indicators
 build
 bin
+.vscode
 effolkronium
-.*
 CMakeLists.txt
 tests
 cmake-build-debug
