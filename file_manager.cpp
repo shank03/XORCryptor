@@ -39,28 +39,30 @@ void FileManager::write_chunk(FileManager::byte *buff, FileManager::byte64 buff_
 
 void FileManager::dispatch_writer_thread(XorCryptor_Base::StatusListener *instance) {
     if (file_writer_thread != nullptr) return;
-    file_writer_thread = new std::thread([this, &instance]() -> void {
-        if (buffer_pool == nullptr || buffer_length == nullptr) {
-            thread_complete = true;
-            condition.notify_all();
-            return;
-        }
+    file_writer_thread = new std::thread(
+            [this](XorCryptor_Base::StatusListener *instance) -> void {
+                if (buffer_pool == nullptr || buffer_length == nullptr) {
+                    thread_complete = true;
+                    condition.notify_all();
+                    return;
+                }
 
-        byte64 curr_chunk_id = 0;
-        while (curr_chunk_id < _num_chunks) {
-            while (buffer_pool[curr_chunk_id] == nullptr) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(50));
-            }
-            if (instance != nullptr) instance->catch_progress("Writing chunk", &curr_chunk_id, _num_chunks);
-            _out_file.write((char *) buffer_pool[curr_chunk_id], std::streamsize(buffer_length[curr_chunk_id]));
-            delete[] buffer_pool[curr_chunk_id];
-            buffer_pool[curr_chunk_id] = nullptr;
-            curr_chunk_id++;
-        }
+                byte64 curr_chunk_id = 0;
+                while (curr_chunk_id < _num_chunks) {
+                    while (buffer_pool[curr_chunk_id] == nullptr) {
+                        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                    }
+                    if (instance != nullptr) instance->catch_progress("Writing chunk", &curr_chunk_id, _num_chunks);
+                    _out_file.write((char *) buffer_pool[curr_chunk_id], std::streamsize(buffer_length[curr_chunk_id]));
+                    delete[] buffer_pool[curr_chunk_id];
+                    buffer_pool[curr_chunk_id] = nullptr;
+                    curr_chunk_id++;
+                }
 
-        thread_complete = true;
-        condition.notify_all();
-    });
+                thread_complete = true;
+                condition.notify_all();
+            },
+            instance);
     file_writer_thread->detach();
 }
 
