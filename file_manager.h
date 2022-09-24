@@ -21,6 +21,8 @@
 #include <mutex>
 #include <thread>
 
+#include "xor_cryptor_base.h"
+
 class FileManager {
     typedef unsigned char byte;
     typedef uint64_t      byte64;
@@ -54,7 +56,7 @@ public:
 
     void write_chunk(byte *buff, byte64 buff_len, byte64 chunk_id);
 
-    void dispatch_writer_thread();
+    void dispatch_writer_thread(XorCryptor_Base::StatusListener *instance);
 
     void wait_writer_thread();
 

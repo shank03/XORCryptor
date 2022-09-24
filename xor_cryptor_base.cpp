@@ -32,7 +32,7 @@ void XorCryptor_Base::print_speed(byte64 fileSize, byte64 time_end) {
 
     std::stringstream str_speed;
     str_speed << std::fixed << std::setprecision(2) << speed;
-    print_status("Time taken = " + std::to_string(time_end) + " [ms] - " + str_speed.str() + unit);
+    print_status("Processed bytes in " + std::to_string(time_end) + " [ms] - " + str_speed.str() + unit);
 }
 
 void XorCryptor_Base::print_status(const std::string &status) const {

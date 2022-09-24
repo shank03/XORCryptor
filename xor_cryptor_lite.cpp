@@ -35,12 +35,11 @@ XorCryptorLite::byte XorCryptorLite::generate_mask(byte _v) {
 }
 
 void XorCryptorLite::process_bytes(byte *_src, byte64 _src_len, const byte *_cipher, byte64 _c_len) {
-    byte64 key_idx = 0;
-    for (byte64 i = 0; i < _src_len; i++) {
-        if (key_idx == _c_len) key_idx = 0;
-        byte _k_mask = generate_mask(_cipher[key_idx++]);
-        _src[i]      = byte(_src[i] ^ _k_mask);
-    }
+    byte *masks = new byte[_c_len];
+    for (byte64 i = 0; i < _c_len; i++) masks[i] = generate_mask(_cipher[i]);
+
+    for (byte64 i = 0; i < _src_len; i++) _src[i] = byte(_src[i] ^ masks[i % _c_len]);
+    delete[] masks;
 }
 
 bool XorCryptorLite::process_file(const std::string &src_path, const std::string &dest_path, const std::string &key) {
@@ -51,7 +50,7 @@ bool XorCryptorLite::process_file(const std::string &src_path, const std::string
     for (byte64 i = 0; i < key.length(); i++) cipher_key[i] = key[i];
 
     byte64 file_length  = std::filesystem::file_size(src_path);
-    byte64 chunk_size   = file_length / byte64(std::thread::hardware_concurrency() - 1);
+    byte64 chunk_size   = file_length / byte64(std::thread::hardware_concurrency() - 2);
     byte64 total_chunks = file_length / chunk_size;
     byte64 last_chunk   = file_length % chunk_size;
     if (last_chunk != 0) {
@@ -63,24 +62,31 @@ bool XorCryptorLite::process_file(const std::string &src_path, const std::string
 
     std::mutex              m;
     std::atomic<byte64>     thread_count = 0;
+    std::atomic<byte64>     duration     = 0;
     std::condition_variable condition;
 
-    std::chrono::steady_clock::time_point begin       = std::chrono::steady_clock::now();
-    byte                                **buffer_pool = new byte *[total_chunks];
-    fileManager->dispatch_writer_thread();
+    byte **buffer_pool = new byte *[total_chunks];
+    fileManager->dispatch_writer_thread(mStatusListener);
 
     byte64 chunk = 0;
-    catch_progress("Processing chunks", &chunk, total_chunks);
+    auto   begin = std::chrono::steady_clock::now();
     for (; chunk < total_chunks; chunk++) {
+        catch_progress("Processing chunks", &chunk, total_chunks);
         byte64 chunk_length = chunk == total_chunks - 1 ? last_chunk : chunk_size;
         buffer_pool[chunk]  = new byte[chunk_length];
+
+        auto read_beg = std::chrono::steady_clock::now();
         fileManager->read_file(buffer_pool[chunk], chunk_length);
+        byte64 read_time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - read_beg).count();
 
         std::thread(
-                [&thread_count, &condition, this](byte *_src, byte64 _s_len, byte *_cipher, byte64 _c_len, byte64 chunk_idx) -> void {
+                [&thread_count, &condition, &duration, &begin, this](byte *_src, byte64 _s_len, byte *_cipher, byte64 _c_len, byte64 chunk_idx, byte64 read_time) -> void {
                     process_bytes(_src, _s_len, _cipher, _c_len);
+                    byte64 curr = duration;
+                    byte64 end  = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - begin).count() - read_time;
+                    duration    = std::max(curr, end);
+
                     if (fileManager != nullptr) {
-                        print_status("Queued chunk #" + std::to_string(chunk_idx));
                         fileManager->write_chunk(_src, _s_len, chunk_idx);
                     } else {
                         print_status("File manager null #" + std::to_string(chunk_idx));
@@ -89,12 +95,12 @@ bool XorCryptorLite::process_file(const std::string &src_path, const std::string
                     thread_count++;
                     condition.notify_all();
                 },
-                buffer_pool[chunk], chunk_length, cipher_key, key.length(), chunk)
+                buffer_pool[chunk], chunk_length, cipher_key, key.length(), chunk, read_time)
                 .detach();
     }
     std::unique_lock<std::mutex> lock(m);
     condition.wait(lock, [&]() -> bool { return thread_count == total_chunks; });
-    print_speed(file_length, std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - begin).count());
+    print_speed(file_length, duration);
 
     catch_progress("Writing file", nullptr, 0);
     fileManager->wait_writer_thread();

@@ -37,12 +37,12 @@ public:
         virtual ~StatusListener() = 0;
     };
 
+    void catch_progress(const std::string &status, byte64 *progress_ptr, byte64 total) const;
+
 protected:
     StatusListener *mStatusListener = nullptr;
 
     void print_status(const std::string &status) const;
-
-    void catch_progress(const std::string &status, byte64 *progress_ptr, byte64 total) const;
 
     void print_speed(byte64 fileSize, byte64 time_end);
 

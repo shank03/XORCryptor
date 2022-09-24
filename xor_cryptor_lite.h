@@ -16,7 +16,6 @@
 #define XOR_CRYPTOR_LITE_H
 
 #include "file_manager.h"
-#include "xor_cryptor_base.h"
 
 class XorCryptorLite : private XorCryptor_Base {
 private:

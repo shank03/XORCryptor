@@ -37,9 +37,9 @@ void FileManager::write_chunk(FileManager::byte *buff, FileManager::byte64 buff_
     buffer_length[chunk_id] = buff_len;
 }
 
-void FileManager::dispatch_writer_thread() {
+void FileManager::dispatch_writer_thread(XorCryptor_Base::StatusListener *instance) {
     if (file_writer_thread != nullptr) return;
-    file_writer_thread = new std::thread([this]() -> void {
+    file_writer_thread = new std::thread([this, &instance]() -> void {
         if (buffer_pool == nullptr || buffer_length == nullptr) {
             thread_complete = true;
             condition.notify_all();
@@ -51,6 +51,7 @@ void FileManager::dispatch_writer_thread() {
             while (buffer_pool[curr_chunk_id] == nullptr) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(50));
             }
+            if (instance != nullptr) instance->catch_progress("Writing chunk", &curr_chunk_id, _num_chunks);
             _out_file.write((char *) buffer_pool[curr_chunk_id], std::streamsize(buffer_length[curr_chunk_id]));
             delete[] buffer_pool[curr_chunk_id];
             buffer_pool[curr_chunk_id] = nullptr;
