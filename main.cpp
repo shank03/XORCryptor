@@ -11,8 +11,7 @@ void print_help() {
     std::cout << "XOR Cryptor\n\n";
     std::cout << "Usage:\n - xor_cryptor -m e -f file_name\n\n";
     std::cout << "Parameters:\n";
-    std::cout << "\t-m <mode> - mode is either 'e0' (light weight encryption) or 'd0' (light weight decryption)\n";
-    std::cout << "\t                           'e1' (heavy encryption) or 'd1' (heavy decryption)\n";
+    std::cout << "\t-m <mode> - mode is either 'e' (encryption) or 'd' (decryption)\n";
     std::cout << "\t-f <file_name> - Encrypts/Decrypts only the file mentioned.\n";
 }
 
