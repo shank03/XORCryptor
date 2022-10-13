@@ -22,7 +22,7 @@ public:
 
     void update_status(const std::string &stat);
 
-    void catch_progress(uint64_t *progress, long double total);
+    void catch_progress(uint64_t *progress, uint64_t total);
 };
 
 

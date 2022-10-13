@@ -28,7 +28,7 @@ void XorCryptor_Base::print_speed(byte64 fileSize, byte64 time_end) {
         unit = " KB/s";
         fileSize /= KILO_BYTE;
     }
-    long double speed = (long double) fileSize / time_end * 1000.0;
+    long double speed = (long double) fileSize / (long double) time_end * 1000.0;
 
     std::stringstream str_speed;
     str_speed << std::fixed << std::setprecision(2) << speed;

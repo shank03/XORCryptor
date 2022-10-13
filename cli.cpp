@@ -22,8 +22,7 @@ void CLIProgressIndicator::start_progress() {
             if (mProgress != nullptr && mTotal != 0) {
                 len += 20;
 
-                long double upper      = *mProgress;
-                upper                  = std::min(upper, mTotal);
+                auto        upper             = std::min((long double) *mProgress, mTotal);
                 long double percentage = (upper * 100.0) / mTotal;
 
                 std::cout << " [ " << std::fixed << std::setprecision(2) << percentage << " / 100 ]";
@@ -51,9 +50,9 @@ void CLIProgressIndicator::update_status(const std::string &stat) {
     mPreIndicatorText = stat;
 }
 
-void CLIProgressIndicator::catch_progress(uint64_t *progress, long double total) {
+void CLIProgressIndicator::catch_progress(uint64_t *progress, uint64_t total) {
     mProgress = progress;
-    mTotal    = total;
+    mTotal    = (long double) total;
 }
 
 void CLIProgressIndicator::stop_progress() {
