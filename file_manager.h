@@ -43,7 +43,15 @@ private:
 
 public:
     FileManager(const std::string &src_path, const std::string &dest_path) {
+        if (std::filesystem::is_directory(src_path)) {
+            is_open = false;
+            return;
+        }
         _src_file.open(src_path, std::ios::in | std::ios::binary);
+        if (!_src_file.is_open()) {
+            is_open = false;
+            return;
+        }
         _out_file.open(dest_path, std::ios::out | std::ios::binary);
         is_open = _src_file.is_open() && _out_file.is_open();
     }
