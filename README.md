@@ -23,7 +23,7 @@ It will ask for key everytime you encrypt or decrypt some file
 xor_cryptor -h                       # help
 xor_cryptor -m e -f info.txt         # (light) encrypts the info.txt
 
-xor_cryptor -m d -f info.txt.xrx     # (light) decrypts the info.txt.xrx
+xor_cryptor -m d -f info.txt.xrc     # (light) decrypts the info.txt.xrc
 ```
 
 ### How CLI works
@@ -40,14 +40,14 @@ And we run `xor_cryptor -m e -f info.txt`, now we'll have:
 ```text
 random_folder
     `- info.txt
-    `- info.txt.xrx
+    `- info.txt.xrc
 ```
 
-If we are to decrypt this `info.txt.xrx`,
+If we are to decrypt this `info.txt.xrc`,
 
-we'll run `xor_cryptor -m d -f info.txt.xrx`
+we'll run `xor_cryptor -m d -f info.txt.xrc`
 
-This will decrypt the `info.txt.xrx` into `info.txt` (i.e. overwriting contents of `info.txt`)
+This will decrypt the `info.txt.xrc` into `info.txt` (i.e. overwriting contents of `info.txt`)
 
 ### NOTE !
 
