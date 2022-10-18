@@ -1,17 +1,23 @@
 #ifndef CLI_PROGRESS_INDICATOR
 #define CLI_PROGRESS_INDICATOR
 
+#include <atomic>
+#include <condition_variable>
+#include <mutex>
 #include <string>
 #include <thread>
 
 class CLIProgressIndicator {
-    std::string mPreIndicatorText;
-    bool mRunIndicator = false;
+    std::string       mPreIndicatorText;
+    std::atomic<bool> mRunIndicator = false;
 
-    uint64_t *mProgress = nullptr;
-    long double mTotal = 0;
+    uint64_t   *mProgress = nullptr;
+    long double mTotal    = 0;
 
-    std::thread *mProgressThread = nullptr;
+    std::mutex              thread_m;
+    std::condition_variable condition;
+    std::atomic<bool>       thread_complete = false;
+    std::thread            *mProgressThread = nullptr;
 
 public:
     void start_progress();
@@ -25,5 +31,4 @@ public:
     void catch_progress(uint64_t *progress, uint64_t total);
 };
 
-
-#endif //CLI_PROGRESS_INDICATOR
+#endif    // CLI_PROGRESS_INDICATOR

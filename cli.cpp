@@ -22,7 +22,7 @@ void CLIProgressIndicator::start_progress() {
             if (mProgress != nullptr && mTotal != 0) {
                 len += 20;
 
-                auto        upper             = std::min((long double) *mProgress, mTotal);
+                auto        upper      = std::min((long double) *mProgress, mTotal);
                 long double percentage = (upper * 100.0) / mTotal;
 
                 std::cout << " [ " << std::fixed << std::setprecision(2) << percentage << " / 100 ]";
@@ -33,8 +33,8 @@ void CLIProgressIndicator::start_progress() {
             std::cout << "\r";
             std::this_thread::sleep_for(std::chrono::milliseconds(150));
         }
-        if (mProgressThread != nullptr && mProgressThread->joinable()) mProgressThread->join();
-        mProgressThread = nullptr;
+        thread_complete = true;
+        condition.notify_all();
     });
     mProgressThread->detach();
 }
@@ -56,8 +56,9 @@ void CLIProgressIndicator::catch_progress(uint64_t *progress, uint64_t total) {
 }
 
 void CLIProgressIndicator::stop_progress() {
+    std::unique_lock<std::mutex> lock(thread_m);
     mRunIndicator = false;
     mProgress     = nullptr;
-    while (mProgressThread != nullptr)
-        ;
+    condition.wait(lock, [this]() -> bool { return thread_complete; });
+    delete mProgressThread;
 }

@@ -29,8 +29,7 @@ struct Status : XorCryptor::StatusListener {
     }
 };
 
-int exec_cli_file(int mode, const std::string &file_name, const std::string &key) {
-    auto *cli     = new CLIProgressIndicator();
+int exec_cli_file(int mode, const std::string &file_name, const std::string &key, CLIProgressIndicator *cli) {
     auto *status  = new Status(cli);
     auto *cryptor = new XorCryptor();
     cli->start_progress();
@@ -58,7 +57,6 @@ int exec_cli_file(int mode, const std::string &file_name, const std::string &key
         std::cout << e.what() << "\n";
         return 1;
     }
-    cli->stop_progress();
     if (res) std::cout << (mode ? "Encryption complete -> " + dest_file_name : "Decryption complete -> " + dest_file_name) << "\n";
     return !res;
 }
@@ -124,16 +122,17 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    std::cout << "\n";
-    int res = 0;
+    auto *cli = new CLIProgressIndicator();
+    int   res = 0;
     for (auto &path : files) {
         if (std::filesystem::is_directory(path)) continue;
-        if (exec_cli_file(mode, path, key)) {
-            std::cout << "Failed to process file \"" << path << "\"\n";
+        if (exec_cli_file(mode, path, key, cli)) {
+            cli->print_status("Failed to process file: \"" + path + "\"");
             res = 1;
         }
-        std::cout << "-----------------------\n";
+        cli->print_status("-----------------------");
     }
-
+    cli->stop_progress();
+    delete cli;
     return res;
 }
