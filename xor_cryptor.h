@@ -15,37 +15,178 @@
 #ifndef XOR_CRYPTOR_H
 #define XOR_CRYPTOR_H
 
-#include "file_manager.h"
-#include "xor_cryptor_base.h"
+#include <atomic>
+#include <condition_variable>
+#include <filesystem>
+#include <fstream>
+#include <mutex>
+#include <sstream>
+#include <thread>
+#include <vector>
 
-class XorCryptor : private XorCryptor_Base {
-private:
-    const byte64 CHUNK_SIZE = byte64(1024 * 1024 * 64);    // 64 MB
-
-    FileManager *fileManager = nullptr;
-
-    byte *_table = nullptr;
-
-    static byte generate_mask(byte _v);
-
-    void generate_cipher_bytes(byte *_cipher, byte64 _k_len, bool to_encrypt) const;
-
-    void encrypt_bytes(byte *_src, byte64 _src_len, const byte *_cipher, byte64 _k_len) const;
-
-    void decrypt_bytes(byte *_src, byte64 _src_len, const byte *_cipher, byte64 _k_len) const;
-
-    bool process_file(const std::string &src_path, const std::string &dest_path, const std::string &key, bool to_encrypt);
+/// @brief A class to encrypt/decrypt files using XOR encryption
+class XorCryptor {
+    typedef unsigned char byte;
+    typedef uint64_t      byte64;
 
 public:
     inline static const std::string FILE_EXTENSION = ".xrc";
 
+    /// @brief Listener for progress
+    struct StatusListener {
+        /// @brief  Prints the status of the current operation
+        /// @param status
+        virtual void print_status(const std::string &status) = 0;
+
+        /// @brief  Catches the progress of the current operation
+        virtual void catch_progress(const std::string &status, byte64 *progress_ptr, byte64 total) = 0;
+
+        virtual ~StatusListener() = 0;
+    };
+
+private:
+    /// @brief Size of the buffer chunk
+    const byte64 CHUNK_SIZE = byte64(1024 * 1024 * 64);    // 64 MB
+
+    StatusListener *mStatusListener = nullptr;
+    byte           *_table          = nullptr;
+
+    /// @brief      Generates mask for the given byte
+    /// @param _v   Byte to generate mask for
+    /// @return     Mask for the given byte
+    static byte generate_mask(byte _v);
+
+    /// @brief              Generates table for the given key
+    /// @param _cipher      Key to generate table for
+    /// @param _k_len       Length of the key
+    /// @param to_encrypt   Whether to encrypt or decrypt
+    void generate_cipher_bytes(byte *_cipher, byte64 _k_len, bool to_encrypt) const;
+
+    /// @brief          Encrypts the buffer using the given key
+    /// @param _src     Buffer to encrypt
+    /// @param _len     Length of the buffer
+    /// @param _cipher  Key to encrypt with
+    /// @param _k_len   Length of the key
+    void encrypt_bytes(byte *_src, byte64 _len, const byte *_cipher, byte64 _k_len) const;
+
+    /// @brief              Decrypts the buffer using the given key
+    /// @param _src         Buffer to decrypt
+    /// @param _src_len     Length of the buffer
+    /// @param _cipher      Key to decrypt with
+    /// @param _k_len       Length of the key
+    void decrypt_bytes(byte *_src, byte64 _src_len, const byte *_cipher, byte64 _k_len) const;
+
+    /// @brief              Process the file
+    /// @param src_path     Path of the file to be processed
+    /// @param dest_path    Path of the processed file
+    /// @param key          Key to process the file
+    /// @param to_encrypt   If true, encrypts the file, else decrypts the file
+    /// @return             Returns true if the file is processed successfully, else false
+    bool process_file(const std::string &src_path, const std::string &dest_path, const std::string &key, bool to_encrypt);
+
+    void print_status(const std::string &status) const;
+
+    void print_speed(byte64 fileSize, byte64 time_end);
+
+    void catch_progress(const std::string &status, byte64 *progress_ptr, byte64 total) const;
+
+public:
     XorCryptor() { mStatusListener = nullptr; }
 
-    bool encrypt_file(const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener) override;
+    /// @brief              Encrypts the file
+    /// @param src_path     The source file path
+    /// @param dest_path    The destination file path
+    /// @param key          The key to encrypt
+    /// @param listener     The status listener
+    /// @return             true if the file is encrypted/decrypted successfully, else false
+    bool encrypt_file(const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener);
 
-    bool decrypt_file(const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener) override;
+    /// @brief              Decrypts the file
+    /// @param src_path     The source file path
+    /// @param dest_path    The destination file path
+    /// @param key          The key to decrypt
+    /// @param listener     The status listener
+    /// @return             true if the file is decrypted successfully, else false
+    bool decrypt_file(const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener);
 
-    ~XorCryptor() { delete mStatusListener; }
+    ~XorCryptor() {
+        delete mStatusListener;
+        delete[] _table;
+    }
+};
+
+/// @brief File manager for the XorCryptor
+class FileManager {
+    typedef unsigned char byte;
+    typedef uint64_t      byte64;
+
+private:
+    std::mutex   _file_lock;
+    std::fstream _src_file, _out_file;
+
+    byte  **buffer_pool   = nullptr;
+    byte64 *buffer_length = nullptr;
+    byte64  _num_chunks   = 0;
+    bool    is_open       = false;
+
+    std::mutex              thread_m;
+    std::condition_variable condition;
+    std::atomic<bool>       thread_complete    = false;
+    std::thread            *file_writer_thread = nullptr;
+
+public:
+    FileManager(const std::string &src_path, const std::string &dest_path) {
+        if (std::filesystem::is_directory(src_path)) {
+            is_open = false;
+            return;
+        }
+        _src_file.open(src_path, std::ios::in | std::ios::binary);
+        if (!_src_file.is_open()) {
+            is_open = false;
+            return;
+        }
+        _out_file.open(dest_path, std::ios::out | std::ios::binary);
+        is_open = _src_file.is_open() && _out_file.is_open();
+    }
+
+    /// @brief      Status of opened the files
+    /// @return     true if the file is opened successfully, else false
+    bool is_opened() const { return is_open; }
+
+    /// @brief              Reads the buffer from @c _src_file into @param buff
+    /// @param buff         Buffer size
+    /// @param buff_len     Buffer length
+    void read_file(byte *buff, byte64 buff_len);
+
+    /// @brief            Initializes the buffer pool
+    /// @param chunks       Chunks of buffer to write
+    void init_write_chunks(byte64 chunks);
+
+    /// @brief              Queue the buffer
+    /// @param buff         Buffer to write
+    /// @param buff_len     Length of the buffer
+    /// @param chunk_id     Chunk id
+    void write_chunk(byte *buff, byte64 buff_len, byte64 chunk_id);
+
+    /// @brief              Writes the buffer to the file in the
+    ///                     order of the chunk id
+    /// @param instance     Instance of the FileManager
+    void dispatch_writer_thread(XorCryptor::StatusListener *instance);
+
+    /// @brief             Waits for the writer thread to complete
+    void wait_writer_thread();
+
+    /// @brief      Closes the files
+    /// @return     true if the files are closed successfully, else false
+    bool close_file();
+
+    /// @brief      Destructor
+    ~FileManager() {
+        if (file_writer_thread->joinable()) file_writer_thread->join();
+        delete file_writer_thread;
+        delete[] buffer_pool;
+        delete[] buffer_length;
+    }
 };
 
 #endif    // XOR_CRYPTOR_H

@@ -14,7 +14,7 @@ void print_help(bool error = false) {
     std::cout << "\t-f <file_name>... - Encrypts/Decrypts the file(s) mentioned.\n";
 }
 
-struct Status : XorCryptor_Base::StatusListener {
+struct Status : XorCryptor::StatusListener {
     CLIProgressIndicator *progressIndicator;
 
     explicit Status(CLIProgressIndicator *indicator) : progressIndicator(indicator) {}
