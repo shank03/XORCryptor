@@ -163,9 +163,10 @@ bool XorCryptor::process_file(const std::string &src_path, const std::string &de
     }
     std::unique_lock<std::mutex> lock(m);
     condition.wait(lock, [&]() -> bool { return thread_count == total_chunks; });
-    
+
     byte64 end = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - begin).count();
-    print_status("\nTime taken        = " + std::to_string(end) + " ms");
+    print_status("\nFile size         = " + std::to_string(file_length / 1024ULL / 1024ULL) + " MB");
+    print_status("Time taken        = " + std::to_string(end) + " ms");
     print_status(" `- Read time     = " + std::to_string(read_time) + " ms");
     end -= read_time;
     print_status(" `- Process time  = " + std::to_string(end) + " ms\n");

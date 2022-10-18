@@ -1,5 +1,3 @@
-#include <unistd.h>
-
 #include <bitset>
 #include <cstring>
 #include <iostream>
@@ -7,12 +5,13 @@
 #include "cli.h"
 #include "xor_cryptor.h"
 
-void print_help() {
-    std::cout << "XOR Cryptor\n\n";
-    std::cout << "Usage:\n - xor_cryptor -m e -f file_name\n\n";
+void print_help(bool error = false) {
+    std::cout << "\n";
+    if (!error) std::cout << "XOR Cryptor\n\n";
+    std::cout << "Usage:\n - xor_cryptor -m e -f file_name...\n\n";
     std::cout << "Parameters:\n";
     std::cout << "\t-m <mode> - mode is either 'e' (encryption) or 'd' (decryption)\n";
-    std::cout << "\t-f <file_name> - Encrypts/Decrypts only the file mentioned.\n";
+    std::cout << "\t-f <file_name>... - Encrypts/Decrypts the file(s) mentioned.\n";
 }
 
 struct Status : XorCryptor_Base::StatusListener {
@@ -60,52 +59,81 @@ int exec_cli_file(int mode, const std::string &file_name, const std::string &key
         return 1;
     }
     cli->stop_progress();
-    std::cout << (res ? (mode ? "Encryption complete -> " + dest_file_name : "Decryption complete -> " + dest_file_name)
-                      : (mode ? "Encryption failed" : "Decryption failed"))
-              << "\n";
-    return 0;
+    if (res) std::cout << (mode ? "Encryption complete -> " + dest_file_name : "Decryption complete -> " + dest_file_name) << "\n";
+    return !res;
+}
+
+void print_error(const std::string &error) {
+    std::cout << "\nError: " << error << "\n";
+    print_help(true);
 }
 
 int main(int argc, char *argv[]) {
-    char *m_val = nullptr, *f_val = nullptr;
-    opterr = 0;
-
-    if (argc == 1
-        || (argc == 2
-            && (strcmp(argv[1], "-h") == 0
-                || strcmp(argv[1], "-help") == 0
-                || strcmp(argv[1], "--help") == 0))) {
+    if (argc == 1) {
         print_help();
         return 0;
     }
 
-    int opt;
-    while ((opt = getopt(argc, argv, "m:f:")) != -1) {
-        if (opt == 'm') m_val = optarg;
-        if (opt == 'f') f_val = optarg;
-    }
-    if (m_val == nullptr) {
-        std::cout << "Invalid args. Use -h for help\n";
-        return 1;
-    }
-    if (f_val == nullptr) {
-        std::cout << "Invalid args. Use -h for help\n";
-        return 1;
+    std::string args[argc];
+    for (int i = 1; i < argc; i++) args[i] = argv[i];
+
+    std::vector<std::string> files;
+    bool                     has_help = false;
+    int                      mode     = 1;    // default: Encryption mode
+    for (int i = 0; i < argc; i++) {
+        if (args[i] == "-h" || args[i] == "--help") {
+            has_help = true;
+            break;
+        }
+        if (args[i] == "-m") {
+            if (i + 1 >= argc) continue;
+            if (args[i + 1] == "e") {
+                mode = 1;
+            } else if (args[i + 1] == "d") {
+                mode = 0;
+            } else {
+                print_error("Invalid mode");
+                return 1;
+            }
+        } else if (args[i] == "-f") {
+            if (i + 1 >= argc) {
+                print_error("No file(s) specified");
+                return 1;
+            }
+            i++;
+            while (i < argc && args[i][0] != '-') files.push_back(args[i++]);
+        }
     }
 
-    int mode;
-    if (strcmp(m_val, "e") == 0) {
-        mode = 1;
-    } else if (strcmp(m_val, "d") == 0) {
-        mode = 0;
-    } else {
-        std::cout << "Invalid args for -m mode\n";
+    if (has_help) {
+        print_help();
+        return 0;
+    }
+
+    if (files.empty()) {
+        print_error("No file(s) specified");
         return 1;
     }
 
     std::string key;
-    std::cout << "Enter the key: ";
+    std::cout << "Enter key: ";
     std::cin >> key;
 
-    return exec_cli_file(mode, std::string(f_val), key);
+    if (key.length() < 6) {
+        std::cout << "Key cannot be less than 6 characters\n";
+        return 1;
+    }
+
+    std::cout << "\n";
+    int res = 0;
+    for (auto &path : files) {
+        if (std::filesystem::is_directory(path)) continue;
+        if (exec_cli_file(mode, path, key)) {
+            std::cout << "Failed to process file \"" << path << "\"\n";
+            res = 1;
+        }
+        std::cout << "-----------------------\n";
+    }
+
+    return res;
 }
