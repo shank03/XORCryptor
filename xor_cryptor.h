@@ -37,7 +37,7 @@ private:
     bool process_file(const std::string &src_path, const std::string &dest_path, const std::string &key, bool to_encrypt);
 
 public:
-    inline static const std::string FILE_EXTENSION = ".xrx";
+    inline static const std::string FILE_EXTENSION = ".xrc";
 
     XorCryptor() { mStatusListener = nullptr; }
 
