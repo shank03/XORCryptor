@@ -56,6 +56,8 @@ void CLIProgressIndicator::catch_progress(uint64_t *progress, uint64_t total) {
 }
 
 void CLIProgressIndicator::stop_progress() {
+    if (mProgressThread == nullptr) return;
+
     std::unique_lock<std::mutex> lock(thread_m);
     mRunIndicator = false;
     mProgress     = nullptr;

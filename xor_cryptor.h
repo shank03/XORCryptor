@@ -45,9 +45,6 @@ public:
     };
 
 private:
-    /// @brief Size of the buffer chunk
-    const byte64 CHUNK_SIZE = byte64(1024 * 1024 * 64);    // 64 MB
-
     StatusListener *mStatusListener = nullptr;
     byte           *_table          = nullptr;
 
@@ -115,6 +112,62 @@ public:
     }
 };
 
+class BufferManager {
+    typedef unsigned char byte;
+    typedef uint64_t      byte64;
+
+private:
+    /// @brief Size of the buffer chunk
+    const byte64 CHUNK_SIZE = byte64(1024 * 1024 * 64);    // 64 MB
+
+    byte  **buffer_pool = nullptr;
+    byte64 *buffer_len  = nullptr;
+    byte64  pool_size   = 0;
+
+public:
+    BufferManager(byte64 complete_length) {
+        byte64 total_chunks = complete_length / CHUNK_SIZE;
+        byte64 last_chunk   = complete_length % CHUNK_SIZE;
+        if (last_chunk != 0) {
+            total_chunks++;
+        } else {
+            last_chunk = CHUNK_SIZE;
+        }
+
+        pool_size   = total_chunks;
+        buffer_pool = new byte *[pool_size];
+        buffer_len  = new byte64[pool_size];
+
+        std::fill(buffer_pool, buffer_pool + pool_size, nullptr);
+        for (byte64 i = 0; i < pool_size; i++) {
+            buffer_len[i] = i == pool_size - 1 ? last_chunk : CHUNK_SIZE;
+        }
+    }
+
+    byte *get_buffer(byte64 index) const {
+        if (buffer_pool[index] == nullptr) {
+            buffer_pool[index] = new byte[buffer_len[index]];
+        }
+        return buffer_pool[index];
+    }
+
+    byte64 get_buffer_len(byte64 index) const { return buffer_len[index]; }
+
+    byte64 get_pool_size() const { return pool_size; }
+
+    void free_buffer(byte64 index) {
+        delete[] buffer_pool[index];
+        buffer_pool[index] = nullptr;
+        buffer_len[index]  = 0;
+    }
+
+    ~BufferManager() {
+        for (byte64 i = 0; i < pool_size; i++) delete[] buffer_pool[i];
+        delete[] buffer_pool;
+        delete[] buffer_len;
+    }
+};
+
 /// @brief File manager for the XorCryptor
 class FileManager {
     typedef unsigned char byte;
@@ -124,10 +177,9 @@ private:
     std::mutex   _file_lock;
     std::fstream _src_file, _out_file;
 
-    byte  **buffer_pool   = nullptr;
-    byte64 *buffer_length = nullptr;
-    byte64  _num_chunks   = 0;
-    bool    is_open       = false;
+    BufferManager *buffer_manager = nullptr;
+    int64_t       *buff_queue     = nullptr;
+    bool           is_open        = false;
 
     std::mutex              thread_m;
     std::condition_variable condition;
@@ -159,14 +211,11 @@ public:
     void read_file(byte *buff, byte64 buff_len);
 
     /// @brief            Initializes the buffer pool
-    /// @param chunks       Chunks of buffer to write
-    void init_write_chunks(byte64 chunks);
+    void init_buffer_queue(BufferManager *buff_mgr);
 
-    /// @brief              Queue the buffer
-    /// @param buff         Buffer to write
-    /// @param buff_len     Length of the buffer
+    /// @brief              Queue the buffer to write
     /// @param chunk_id     Chunk id
-    void write_chunk(byte *buff, byte64 buff_len, byte64 chunk_id);
+    void queue_chunk(byte64 chunk_id);
 
     /// @brief              Writes the buffer to the file in the
     ///                     order of the chunk id
@@ -184,8 +233,8 @@ public:
     ~FileManager() {
         if (file_writer_thread->joinable()) file_writer_thread->join();
         delete file_writer_thread;
-        delete[] buffer_pool;
-        delete[] buffer_length;
+        delete buffer_manager;
+        delete[] buff_queue;
     }
 };
 
