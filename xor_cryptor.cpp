@@ -125,6 +125,7 @@ bool XorCryptor::process_file(const std::string &src_path, const std::string &de
 
     byte64 chunk = 0, p_chunk = 0, read_time = 0;
     catch_progress("Processing chunks", &p_chunk, buff_mgr->get_pool_size());
+    auto *pool = new ThreadPool();
 
     auto begin = std::chrono::steady_clock::now();
     for (; chunk < buff_mgr->get_pool_size(); chunk++) {
@@ -134,7 +135,7 @@ bool XorCryptor::process_file(const std::string &src_path, const std::string &de
         fileManager->read_file(buff, buff_len);
         read_time += std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - read_beg).count();
 
-        std::thread(
+        pool->queue(
                 [&thread_count, &condition, &duration, &begin,
                  &to_encrypt, this](byte *_src, byte64 _s_len, const byte *_cipher, byte64 _c_len,
                                     byte64 chunk_idx, byte64 *p_chunk, FileManager *fileManager, byte64 total_chunks) -> void {
@@ -155,11 +156,11 @@ bool XorCryptor::process_file(const std::string &src_path, const std::string &de
                     thread_count++;
                     condition.notify_all();
                 },
-                buff, buff_len, cipher_key, key.length(), chunk, &p_chunk, fileManager, buff_mgr->get_pool_size())
-                .detach();
+                buff, buff_len, cipher_key, key.length(), chunk, &p_chunk, fileManager, buff_mgr->get_pool_size());
     }
     std::unique_lock<std::mutex> lock(m);
     condition.wait(lock, [&]() -> bool { return thread_count == buff_mgr->get_pool_size(); });
+    delete pool;
 
     byte64 end = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - begin).count();
     print_status("\nFile size         = " + std::to_string(file_length / 1024ULL / 1024ULL) + " MB");

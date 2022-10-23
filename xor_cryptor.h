@@ -19,7 +19,9 @@
 #include <condition_variable>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <mutex>
+#include <queue>
 #include <sstream>
 #include <thread>
 #include <vector>
@@ -109,6 +111,57 @@ public:
     ~XorCryptor() {
         delete mStatusListener;
         delete[] _table;
+    }
+};
+
+class ThreadPool {
+private:
+    std::mutex              queue_mutex;
+    std::condition_variable condition;
+    std::atomic<bool>       stop = false;
+
+    std::vector<std::thread>          worker_threads;
+    std::queue<std::function<void()>> jobs;
+
+public:
+    ThreadPool(size_t threads = std::thread::hardware_concurrency()) {
+        stop = false;
+        for (size_t i = 0; i < threads; i++) {
+            worker_threads.emplace_back([this] {
+                for (;;) {
+                    std::function<void()> job;
+                    {
+                        std::unique_lock<std::mutex> lock(queue_mutex);
+                        condition.wait(lock, [&] { return stop || !jobs.empty(); });
+                        if (stop && jobs.empty()) return;
+                        job = std::move(jobs.front());
+                        jobs.pop();
+                    }
+                    job();
+                }
+            });
+        }
+    }
+
+    template <typename F, typename... A>
+    auto queue(F &&f, A &&...args) {
+        std::function<void()> task = std::bind(std::forward<F>(f), std::forward<A>(args)...);
+        {
+            std::unique_lock<std::mutex> lock(queue_mutex);
+            if (stop)
+                throw std::runtime_error("enqueue on stopped ThreadPool");
+            jobs.emplace([task] { task(); });
+        }
+        condition.notify_one();
+    }
+
+    ~ThreadPool() {
+        {
+            std::unique_lock<std::mutex> lock(queue_mutex);
+            stop = true;
+        }
+        condition.notify_all();
+        for (auto &worker : worker_threads) worker.join();
     }
 };
 
