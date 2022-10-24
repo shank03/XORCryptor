@@ -20,12 +20,12 @@ void CLIProgressIndicator::start_progress() {
 
             int len = (int) mPreIndicatorText.length() + 3;
             if (mProgress != nullptr && mTotal != 0) {
-                len += 20;
-
-                auto        upper      = std::min((long double) *mProgress, mTotal);
+                long double pr         = mProgress == nullptr ? (long double) *mProgress : mTotal;
+                auto        upper      = std::min(pr, mTotal);
                 long double percentage = (upper * 100.0) / mTotal;
 
                 std::cout << " [ " << std::fixed << std::setprecision(2) << percentage << " / 100 ]";
+                len += 20;
             }
             last_len = len;
 

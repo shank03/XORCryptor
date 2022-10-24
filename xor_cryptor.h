@@ -239,6 +239,9 @@ private:
     std::atomic<bool>       thread_complete    = false;
     std::thread            *file_writer_thread = nullptr;
 
+    /// @brief             Waits for the writer thread to complete
+    void wait_writer_thread();
+
 public:
     FileManager(const std::string &src_path, const std::string &dest_path) {
         if (std::filesystem::is_directory(src_path)) {
@@ -275,12 +278,9 @@ public:
     /// @param instance     Instance of the FileManager
     void dispatch_writer_thread(XorCryptor::StatusListener *instance);
 
-    /// @brief             Waits for the writer thread to complete
-    void wait_writer_thread();
-
-    /// @brief      Closes the files
+    /// @brief      Closes the files and waits for writer thread to complete
     /// @return     true if the files are closed successfully, else false
-    bool close_file();
+    bool wrap_up();
 
     /// @brief      Destructor
     ~FileManager() {

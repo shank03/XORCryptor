@@ -175,9 +175,9 @@ bool XorCryptor::process_file(const std::string &src_path, const std::string &de
     _table = nullptr;
 
     catch_progress("Writing file", nullptr, 0);
-    fileManager->wait_writer_thread();
-    auto _ret = fileManager->close_file();
+    auto _ret = fileManager->wrap_up();
     delete fileManager;
+    if (!std::filesystem::remove(src_path)) print_status("\n--- Could not delete source file ---\n");
     return _ret;
 }
 
@@ -267,7 +267,8 @@ void FileManager::wait_writer_thread() {
     condition.wait(lock, [&]() -> bool { return thread_complete; });
 }
 
-bool FileManager::close_file() {
+bool FileManager::wrap_up() {
+    wait_writer_thread();
     _src_file.close();
     _out_file.close();
     return !_src_file.is_open() && !_out_file.is_open();

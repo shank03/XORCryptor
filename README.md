@@ -39,7 +39,6 @@ And we run `xor_cryptor -m e -f info.txt`, now we'll have:
 
 ```text
 random_folder
-    `- info.txt
     `- info.txt.xrc
 ```
 
@@ -47,7 +46,7 @@ If we are to decrypt this `info.txt.xrc`,
 
 we'll run `xor_cryptor -m d -f info.txt.xrc`
 
-This will decrypt the `info.txt.xrc` into `info.txt` (i.e. overwriting contents of `info.txt`)
+This will decrypt the `info.txt.xrc` into `info.txt`
 
 ### NOTE !
 
