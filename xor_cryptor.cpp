@@ -103,7 +103,7 @@ void XorCryptor::decrypt_bytes(byte *_src, byte64 _src_len, const byte *_cipher,
     }
 }
 
-bool XorCryptor::process_file(const std::string &src_path, const std::string &dest_path, const std::string &key, bool to_encrypt) {
+bool XorCryptor::process_file(const std::string &src_path, const std::string &dest_path, const std::string &key, bool to_encrypt, bool preverse_src) {
     auto *fileManager = new FileManager(src_path, dest_path);
     if (!fileManager->is_opened()) return false;
 
@@ -177,7 +177,9 @@ bool XorCryptor::process_file(const std::string &src_path, const std::string &de
     catch_progress("Writing file", nullptr, 0);
     auto _ret = fileManager->wrap_up();
     delete fileManager;
-    if (!std::filesystem::remove(src_path)) print_status("\n--- Could not delete source file ---\n");
+    if (!preverse_src) {
+        if (!std::filesystem::remove(src_path)) print_status("\n--- Could not delete source file ---\n");
+    }
     return _ret;
 }
 
@@ -210,14 +212,14 @@ void XorCryptor::catch_progress(const std::string &status, XorCryptor::byte64 *p
     mStatusListener->catch_progress(status, progress_ptr, total);
 }
 
-bool XorCryptor::encrypt_file(const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener) {
+bool XorCryptor::encrypt_file(bool preverse_src, const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener) {
     mStatusListener = listener;
-    return process_file(src_path, dest_path, key, true);
+    return process_file(src_path, dest_path, key, true, preverse_src);
 }
 
-bool XorCryptor::decrypt_file(const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener) {
+bool XorCryptor::decrypt_file(bool preverse_src, const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener) {
     mStatusListener = listener;
-    return process_file(src_path, dest_path, key, false);
+    return process_file(src_path, dest_path, key, false, preverse_src);
 }
 
 /// =================================================================================================

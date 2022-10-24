@@ -80,8 +80,9 @@ private:
     /// @param dest_path    Path of the processed file
     /// @param key          Key to process the file
     /// @param to_encrypt   If true, encrypts the file, else decrypts the file
+    /// @param preserve_src If true, src file is deleted
     /// @return             Returns true if the file is processed successfully, else false
-    bool process_file(const std::string &src_path, const std::string &dest_path, const std::string &key, bool to_encrypt);
+    bool process_file(const std::string &src_path, const std::string &dest_path, const std::string &key, bool to_encrypt, bool preverse_src);
 
     void print_status(const std::string &status) const;
 
@@ -93,20 +94,22 @@ public:
     XorCryptor() { mStatusListener = nullptr; }
 
     /// @brief              Encrypts the file
+    /// @param preserve_src Src file shall be deleted when true
     /// @param src_path     The source file path
     /// @param dest_path    The destination file path
     /// @param key          The key to encrypt
     /// @param listener     The status listener
     /// @return             true if the file is encrypted/decrypted successfully, else false
-    bool encrypt_file(const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener);
+    bool encrypt_file(bool preverse_src, const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener);
 
     /// @brief              Decrypts the file
+    /// @param preserve_src Src file shall be deleted when true
     /// @param src_path     The source file path
     /// @param dest_path    The destination file path
     /// @param key          The key to decrypt
     /// @param listener     The status listener
     /// @return             true if the file is decrypted successfully, else false
-    bool decrypt_file(const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener);
+    bool decrypt_file(bool preverse_src, const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener);
 
     ~XorCryptor() {
         delete mStatusListener;

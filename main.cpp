@@ -8,10 +8,11 @@
 void print_help(bool error = false) {
     std::cout << "\n";
     if (!error) std::cout << "XOR Cryptor\n\n";
-    std::cout << "Usage:\n - xor_cryptor -m e -f file_name...\n\n";
+    std::cout << "Usage:\n - xor_cryptor -p -m e -f file_name...\n\n";
     std::cout << "Parameters:\n";
-    std::cout << "\t-m <mode> - mode is either 'e' (encryption) or 'd' (decryption)\n";
-    std::cout << "\t-f <file_name>... - Encrypts/Decrypts the file(s) mentioned.\n";
+    std::cout << "\t-p            - Preserves the source file\n";
+    std::cout << "\t-m <mode>     - mode is either 'e' (encryption) or 'd' (decryption)\n";
+    std::cout << "\t-f <files>... - Encrypts/Decrypts the file(s) mentioned.\n";
 }
 
 struct Status : XorCryptor::StatusListener {
@@ -29,7 +30,7 @@ struct Status : XorCryptor::StatusListener {
     }
 };
 
-int exec_cli_file(int mode, const std::string &file_name, const std::string &key, CLIProgressIndicator *cli) {
+int exec_cli_file(int mode, bool preserve_src, const std::string &file_name, const std::string &key, CLIProgressIndicator *cli) {
     auto *status  = new Status(cli);
     auto *cryptor = new XorCryptor();
     cli->start_progress();
@@ -43,14 +44,14 @@ int exec_cli_file(int mode, const std::string &file_name, const std::string &key
                 return 1;
             }
             dest_file_name.append(XorCryptor::FILE_EXTENSION);
-            res = cryptor->encrypt_file(file_name, dest_file_name, key, status);
+            res = cryptor->encrypt_file(preserve_src, file_name, dest_file_name, key, status);
         } else {
             if (dest_file_name.find(XorCryptor::FILE_EXTENSION) == std::string::npos) {
                 std::cout << "This file is not for decryption\n";
                 return 1;
             }
             dest_file_name = dest_file_name.substr(0, dest_file_name.length() - 4);
-            res            = cryptor->decrypt_file(file_name, dest_file_name, key, status);
+            res            = cryptor->decrypt_file(preserve_src, file_name, dest_file_name, key, status);
         }
     } catch (std::exception &e) {
         std::cout << "Unknown error occurred\n";
@@ -76,9 +77,12 @@ int main(int argc, char *argv[]) {
     for (int i = 1; i < argc; i++) args[i] = argv[i];
 
     std::vector<std::string> files;
-    bool                     has_help = false;
-    int                      mode     = 1;    // default: Encryption mode
+
+    int  mode         = 1;    // default: Encryption mode
+    bool has_help     = false;
+    bool preserve_src = false;
     for (int i = 0; i < argc; i++) {
+        if (args[i] == "-p") preserve_src = true;
         if (args[i] == "-h" || args[i] == "--help") {
             has_help = true;
             break;
@@ -126,7 +130,7 @@ int main(int argc, char *argv[]) {
     int   res = 0;
     for (auto &path : files) {
         if (std::filesystem::is_directory(path)) continue;
-        if (exec_cli_file(mode, path, key, cli)) {
+        if (exec_cli_file(mode, preserve_src, path, key, cli)) {
             cli->print_status("Failed to process file: \"" + path + "\"");
             res = 1;
         }
