@@ -103,7 +103,8 @@ void XorCryptor::decrypt_bytes(byte *_src, byte64 _src_len, const byte *_cipher,
     }
 }
 
-bool XorCryptor::process_file(const std::string &src_path, const std::string &dest_path, const std::string &key, bool to_encrypt, bool preverse_src) {
+bool XorCryptor::process_file(const std::string &src_path, const std::string &dest_path, const std::string &key,
+                              bool to_encrypt, bool preverse_src) {
     auto *fileManager = new FileManager(src_path, dest_path);
     if (!fileManager->is_opened()) return false;
 
@@ -114,8 +115,6 @@ bool XorCryptor::process_file(const std::string &src_path, const std::string &de
     generate_cipher_bytes(cipher_key, key.length(), to_encrypt);
 
     byte64 file_length = std::filesystem::file_size(src_path);
-    auto  *buff_mgr    = new BufferManager(file_length);
-    fileManager->init_buffer_queue(buff_mgr);
     fileManager->dispatch_writer_thread(mStatusListener);
 
     std::mutex              m;
@@ -123,16 +122,14 @@ bool XorCryptor::process_file(const std::string &src_path, const std::string &de
     std::atomic<byte64>     duration     = 0;
     std::condition_variable condition;
 
-    byte64 chunk = 0, p_chunk = 0, read_time = 0;
-    catch_progress("Processing chunks", &p_chunk, buff_mgr->get_pool_size());
-    auto *pool = new ThreadPool();
+    byte64 chunk = 0, p_chunk = 0, read_time = 0, total_chunks = fileManager->get_buffer_mgr()->get_pool_size();
+    catch_progress("Processing chunks", &p_chunk, total_chunks);
 
-    auto begin = std::chrono::steady_clock::now();
-    for (; chunk < buff_mgr->get_pool_size(); chunk++) {
-        auto   read_beg = std::chrono::steady_clock::now();
-        byte  *buff     = buff_mgr->get_buffer(chunk);
-        byte64 buff_len = buff_mgr->get_buffer_len(chunk);
-        fileManager->read_file(buff, buff_len);
+    auto *pool  = new ThreadPool();
+    auto  begin = std::chrono::steady_clock::now();
+    for (; chunk < total_chunks; chunk++) {
+        auto read_beg = std::chrono::steady_clock::now();
+        fileManager->read_file(chunk);
         read_time += std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - read_beg).count();
 
         pool->queue(
@@ -156,10 +153,12 @@ bool XorCryptor::process_file(const std::string &src_path, const std::string &de
                     thread_count++;
                     condition.notify_all();
                 },
-                buff, buff_len, cipher_key, key.length(), chunk, &p_chunk, fileManager, buff_mgr->get_pool_size());
+                fileManager->get_buffer_mgr()->get_buffer(chunk),
+                fileManager->get_buffer_mgr()->get_buffer_len(chunk),
+                cipher_key, key.length(), chunk, &p_chunk, fileManager, total_chunks);
     }
     std::unique_lock<std::mutex> lock(m);
-    condition.wait(lock, [&]() -> bool { return thread_count == buff_mgr->get_pool_size(); });
+    condition.wait(lock, [&]() -> bool { return thread_count == total_chunks; });
     delete pool;
 
     byte64 end = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - begin).count();
@@ -226,15 +225,9 @@ bool XorCryptor::decrypt_file(bool preverse_src, const std::string &src_path, co
 /// XorCryptor::FileManager
 /// =================================================================================================
 
-void FileManager::read_file(FileManager::byte *buff, FileManager::byte64 buff_len) {
+void FileManager::read_file(byte64 buff_idx) {
     std::lock_guard<std::mutex> lock_guard(_file_lock);
-    _src_file.read((char *) buff, std::streamsize(buff_len));
-}
-
-void FileManager::init_buffer_queue(BufferManager *buff_mgr) {
-    buffer_manager = buff_mgr;
-    buff_queue     = new int64_t[buffer_manager->get_pool_size()];
-    std::fill(buff_queue, buff_queue + buffer_manager->get_pool_size(), -1);
+    _src_file.read((char *) buffer_manager->get_buffer(buff_idx), std::streamsize(buffer_manager->get_buffer_len(buff_idx)));
 }
 
 void FileManager::queue_chunk(byte64 chunk_idx) {

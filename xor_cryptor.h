@@ -257,20 +257,21 @@ public:
             return;
         }
         _out_file.open(dest_path, std::ios::out | std::ios::binary);
-        is_open = _src_file.is_open() && _out_file.is_open();
+        buffer_manager = new BufferManager(std::filesystem::file_size(src_path));
+        buff_queue     = new int64_t[buffer_manager->get_pool_size()];
+        is_open        = _src_file.is_open() && _out_file.is_open();
+        std::fill(buff_queue, buff_queue + buffer_manager->get_pool_size(), -1);
     }
+
+    BufferManager *get_buffer_mgr() const { return buffer_manager; }
 
     /// @brief      Status of opened the files
     /// @return     true if the file is opened successfully, else false
     bool is_opened() const { return is_open; }
 
     /// @brief              Reads the buffer from @c _src_file into @param buff
-    /// @param buff         Buffer size
-    /// @param buff_len     Buffer length
-    void read_file(byte *buff, byte64 buff_len);
-
-    /// @brief            Initializes the buffer pool
-    void init_buffer_queue(BufferManager *buff_mgr);
+    /// @param buff_idx     Buffer index to be read
+    void read_file(byte64 buff_idx);
 
     /// @brief              Queue the buffer to write
     /// @param chunk_id     Chunk id
