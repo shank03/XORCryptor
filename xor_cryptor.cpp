@@ -257,6 +257,7 @@ void FileManager::dispatch_writer_thread(XorCryptor::StatusListener *instance) {
                     curr_chunk_id++;
                 }
 
+                if (instance != nullptr) instance->catch_progress("Writing file", nullptr, 0);
                 thread_complete = true;
                 condition.notify_all();
             },
