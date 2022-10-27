@@ -14,7 +14,7 @@
 
 CC := g++
 CFLAGS := -Wall -Wextra -Werror -std=c++17 -O3 -D_GLIBCXX_ASSERTIONS
-LIB := -pthread -pedantic
+LIB :=
 INC := -I.
 
 BIN_DIR := $(CURDIR)/bin
@@ -27,17 +27,7 @@ ifeq ($(OS),Windows_NT)
 	IS_WIN := true
 endif
 
-all: $(TARGET)
-
-ifeq ($(IS_WIN),false)
-install: all
-	@echo "Installing"; sudo cp $(TARGET) /usr/bin
-
-uninstall:
-	sudo rm -rf /usr/bin/xor_cryptor
-endif
-
-$(TARGET): $(BUILD_DIR)/main.o $(BUILD_DIR)/cli.o $(BUILD_DIR)/xor_cryptor.o
+all: $(BUILD_DIR)/main.o $(BUILD_DIR)/xor_cryptor.o
 	$(shell if [ ! -d "$(BIN_DIR)" ]; then\
 	    mkdir "$(BIN_DIR)";\
 	fi)
@@ -50,7 +40,6 @@ $(BUILD_DIR)/%.o: %.cpp
 	$(CC) $(CFLAGS) $(INC) -c -o $@ $<
 
 $(BUILD_DIR)/xor_cryptor.o: xor_cryptor.cpp xor_cryptor.h
-$(BUILD_DIR)/cli.o: cli.cpp cli.h
 $(BUILD_DIR)/main.o: main.cpp
 
 clean:

@@ -23,8 +23,6 @@
  * date: 21-Sep-2022
  */
 
-XorCryptor::StatusListener::~StatusListener() = default;
-
 XorCryptor::byte XorCryptor::generate_mask(byte v) {
     byte mask = 0, vt = v;
     while (vt) {
@@ -103,165 +101,33 @@ void XorCryptor::decrypt_bytes(byte *_src, byte64 _src_len, const byte *_cipher,
     }
 }
 
-bool XorCryptor::process_file(const std::string &src_path, const std::string &dest_path, const std::string &key,
-                              bool to_encrypt, bool preserve_src) {
-    auto *fileManager = new FileManager(src_path, dest_path);
-    if (!fileManager->is_opened()) return false;
+void XorCryptor::process_data(const std::string &input_data, const std::string &key, std::string *dest, bool to_encrypt) {
+    if (input_data.empty()) return;
+    if (key.empty() || key.length() < 6) return;
 
-    byte *cipher_key = new byte[key.length()], *_table = new byte[0x100];
-    for (byte64 i = 0; i < key.length(); i++) cipher_key[i] = key[i];
-    generate_cipher_bytes(cipher_key, key.length(), _table, to_encrypt);
+    byte *src    = new byte[input_data.length()],
+         *cipher = new byte[key.length()],
+         *_table = new byte[0x100];
+    for (size_t i = 0; i < input_data.length(); i++) src[i] = input_data[i];
+    for (size_t i = 0; i < key.length(); i++) cipher[i] = key[i];
+    generate_cipher_bytes(cipher, key.length(), _table, to_encrypt);
 
-    byte64 file_length = std::filesystem::file_size(src_path);
-    fileManager->dispatch_writer_thread(mStatusListener);
-
-    std::mutex              m;
-    std::atomic<byte64>     thread_count = 0;
-    std::condition_variable condition;
-
-    byte64 chunk = 0, p_chunk = 0, read_time = 0, total_chunks = fileManager->get_buffer_mgr()->get_pool_size();
-    catch_progress("Processing chunks", &p_chunk, total_chunks);
-
-    auto *pool  = new ThreadPool();
-    auto  begin = std::chrono::steady_clock::now();
-    for (; chunk < total_chunks; chunk++) {
-        auto read_beg = std::chrono::steady_clock::now();
-        fileManager->read_file(chunk);
-        read_time += std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - read_beg).count();
-
-        pool->queue(
-                [&thread_count, &condition,
-                 &to_encrypt, &_table, this](byte *_src, byte64 _s_len, const byte *_cipher, byte64 _c_len,
-                                             byte64 chunk_idx, byte64 *p_chunk, FileManager *fileManager, byte64 total_chunks) -> void {
-                    if (to_encrypt) {
-                        encrypt_bytes(_src, _s_len, _cipher, _c_len, _table);
-                    } else {
-                        decrypt_bytes(_src, _s_len, _cipher, _c_len, _table);
-                    }
-                    (*p_chunk)++;
-                    catch_progress("Processing chunks", p_chunk, total_chunks);
-
-                    if (fileManager != nullptr) {
-                        fileManager->queue_chunk(chunk_idx);
-                    } else {
-                        print_status("File manager null #" + std::to_string(chunk_idx));
-                    }
-
-                    thread_count++;
-                    condition.notify_all();
-                },
-                fileManager->get_buffer_mgr()->get_buffer(chunk),
-                fileManager->get_buffer_mgr()->get_buffer_len(chunk),
-                cipher_key, key.length(), chunk, &p_chunk, fileManager, total_chunks);
-    }
-    std::unique_lock<std::mutex> lock(m);
-    condition.wait(lock, [&]() -> bool { return thread_count == total_chunks; });
-    delete pool;
-
-    byte64 end = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - begin).count();
-    print_status("\nFile size         = " + std::to_string(file_length / 1024ULL / 1024ULL) + " MB");
-    print_status("Time taken        = " + std::to_string(end) + " ms");
-    print_status(" `- Read time     = " + std::to_string(read_time) + " ms");
-    end -= read_time;
-    print_status(" `- Process time  = " + std::to_string(end) + " ms\n");
-    print_speed(file_length, end);
-
-    delete[] cipher_key;
-    delete[] _table;
-
-    catch_progress("Writing file", nullptr, 0);
-    auto _ret = fileManager->wrap_up();
-    delete fileManager;
-    if (!preserve_src) {
-        if (!std::filesystem::remove(src_path)) print_status("\n--- Could not delete source file ---\n");
-    }
-    return _ret;
-}
-
-void XorCryptor::print_speed(byte64 fileSize, byte64 time_end) {
-    const byte64 KILO_BYTE = byte64(1024) * byte64(sizeof(unsigned char));
-    const byte64 MEGA_BYTE = byte64(1024) * KILO_BYTE;
-
-    std::string unit;
-    if (fileSize >= MEGA_BYTE) {
-        unit = " MB/s";
-        fileSize /= MEGA_BYTE;
+    if (to_encrypt) {
+        encrypt_bytes(src, input_data.length(), cipher, key.length(), _table);
     } else {
-        unit = " KB/s";
-        fileSize /= KILO_BYTE;
+        decrypt_bytes(src, input_data.length(), cipher, key.length(), _table);
     }
-    long double speed = (long double) fileSize / (long double) time_end * 1000.0;
+    for (size_t i = 0; i < input_data.length(); i++) dest->push_back((char) src[i]);
 
-    std::stringstream str_speed;
-    str_speed << std::fixed << std::setprecision(2) << speed;
-    print_status("Processed bytes in " + std::to_string(time_end) + " [ms] - " + str_speed.str() + unit);
+    delete[] src;
+    delete[] cipher;
+    delete[] _table;
 }
 
-void XorCryptor::print_status(const std::string &status) const {
-    if (mStatusListener == nullptr) return;
-    mStatusListener->print_status(status);
+void XorCryptor::encrypt(const std::string &input_data, const std::string &key, std::string *dest) {
+    process_data(input_data, key, dest, true);
 }
 
-void XorCryptor::catch_progress(const std::string &status, XorCryptor::byte64 *progress_ptr, XorCryptor::byte64 total) const {
-    if (mStatusListener == nullptr) return;
-    mStatusListener->catch_progress(status, progress_ptr, total);
-}
-
-bool XorCryptor::encrypt_file(bool preserve_src, const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener) {
-    mStatusListener = listener;
-    return process_file(src_path, dest_path, key, true, preserve_src);
-}
-
-bool XorCryptor::decrypt_file(bool preserve_src, const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener) {
-    mStatusListener = listener;
-    return process_file(src_path, dest_path, key, false, preserve_src);
-}
-
-/// =================================================================================================
-/// XorCryptor::FileManager
-/// =================================================================================================
-
-void FileManager::read_file(byte64 buff_idx) {
-    std::lock_guard<std::mutex> lock_guard(_file_lock);
-    _src_file.read((char *) buffer_manager->get_buffer(buff_idx), std::streamsize(buffer_manager->get_buffer_len(buff_idx)));
-}
-
-void FileManager::queue_chunk(byte64 chunk_idx) {
-    std::lock_guard<std::mutex> lock_guard(_file_lock);
-    buff_queue[chunk_idx] = (int64_t) chunk_idx;
-}
-
-void FileManager::dispatch_writer_thread(XorCryptor::StatusListener *instance) {
-    if (file_writer_thread != nullptr) return;
-    file_writer_thread = new std::thread(
-            [this](XorCryptor::StatusListener *instance) -> void {
-                byte64 curr_chunk_id = 0;
-                while (curr_chunk_id < buffer_manager->get_pool_size()) {
-                    while (buff_queue[curr_chunk_id] == -1) {
-                        std::this_thread::sleep_for(std::chrono::milliseconds(50));
-                    }
-                    if (instance != nullptr) instance->catch_progress("Writing chunk", &curr_chunk_id, buffer_manager->get_pool_size());
-                    _out_file.write((char *) buffer_manager->get_buffer(curr_chunk_id), std::streamsize(buffer_manager->get_buffer_len(curr_chunk_id)));
-                    buffer_manager->free_buffer(curr_chunk_id);
-                    curr_chunk_id++;
-                }
-
-                if (instance != nullptr) instance->catch_progress("Writing file", nullptr, 0);
-                thread_complete = true;
-                condition.notify_all();
-            },
-            instance);
-    file_writer_thread->detach();
-}
-
-void FileManager::wait_writer_thread() {
-    std::unique_lock<std::mutex> lock(thread_m);
-    condition.wait(lock, [&]() -> bool { return thread_complete; });
-}
-
-bool FileManager::wrap_up() {
-    wait_writer_thread();
-    _src_file.close();
-    _out_file.close();
-    return !_src_file.is_open() && !_out_file.is_open();
+void XorCryptor::decrypt(const std::string &input_data, const std::string &key, std::string *dest) {
+    process_data(input_data, key, dest, false);
 }
