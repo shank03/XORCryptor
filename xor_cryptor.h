@@ -48,7 +48,6 @@ public:
 
 private:
     StatusListener *mStatusListener = nullptr;
-    byte           *_table          = nullptr;
 
     /// @brief      Generates mask for the given byte
     /// @param _v   Byte to generate mask for
@@ -58,22 +57,23 @@ private:
     /// @brief              Generates table for the given key
     /// @param _cipher      Key to generate table for
     /// @param _k_len       Length of the key
+    /// @param _table       Cipher table
     /// @param to_encrypt   Whether to encrypt or decrypt
-    void generate_cipher_bytes(byte *_cipher, byte64 _k_len, bool to_encrypt) const;
+    static void generate_cipher_bytes(byte *_cipher, byte64 _k_len, byte *_table, bool to_encrypt);
 
     /// @brief          Encrypts the buffer using the given key
     /// @param _src     Buffer to encrypt
     /// @param _len     Length of the buffer
     /// @param _cipher  Key to encrypt with
     /// @param _k_len   Length of the key
-    void encrypt_bytes(byte *_src, byte64 _len, const byte *_cipher, byte64 _k_len) const;
+    static void encrypt_bytes(byte *_src, byte64 _len, const byte *_cipher, byte64 _k_len, const byte *_table);
 
     /// @brief              Decrypts the buffer using the given key
     /// @param _src         Buffer to decrypt
     /// @param _src_len     Length of the buffer
     /// @param _cipher      Key to decrypt with
     /// @param _k_len       Length of the key
-    void decrypt_bytes(byte *_src, byte64 _src_len, const byte *_cipher, byte64 _k_len) const;
+    static void decrypt_bytes(byte *_src, byte64 _src_len, const byte *_cipher, byte64 _k_len, const byte *_table);
 
     /// @brief              Process the file
     /// @param src_path     Path of the file to be processed
@@ -82,7 +82,7 @@ private:
     /// @param to_encrypt   If true, encrypts the file, else decrypts the file
     /// @param preserve_src If true, src file is deleted
     /// @return             Returns true if the file is processed successfully, else false
-    bool process_file(const std::string &src_path, const std::string &dest_path, const std::string &key, bool to_encrypt, bool preverse_src);
+    bool process_file(const std::string &src_path, const std::string &dest_path, const std::string &key, bool to_encrypt, bool preserve_src);
 
     void print_status(const std::string &status) const;
 
@@ -100,7 +100,7 @@ public:
     /// @param key          The key to encrypt
     /// @param listener     The status listener
     /// @return             true if the file is encrypted/decrypted successfully, else false
-    bool encrypt_file(bool preverse_src, const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener);
+    bool encrypt_file(bool preserve_src, const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener);
 
     /// @brief              Decrypts the file
     /// @param preserve_src Src file shall be deleted when true
@@ -109,12 +109,9 @@ public:
     /// @param key          The key to decrypt
     /// @param listener     The status listener
     /// @return             true if the file is decrypted successfully, else false
-    bool decrypt_file(bool preverse_src, const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener);
+    bool decrypt_file(bool preserve_src, const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener);
 
-    ~XorCryptor() {
-        delete mStatusListener;
-        delete[] _table;
-    }
+    ~XorCryptor() { delete mStatusListener; }
 };
 
 class ThreadPool {
@@ -127,7 +124,7 @@ private:
     std::queue<std::function<void()>> jobs;
 
 public:
-    ThreadPool(size_t threads = std::thread::hardware_concurrency()) {
+    explicit ThreadPool(size_t threads = std::thread::hardware_concurrency()) {
         stop = false;
         for (size_t i = 0; i < threads; i++) {
             worker_threads.emplace_back([this] {
@@ -181,7 +178,7 @@ private:
     byte64  pool_size   = 0;
 
 public:
-    BufferManager(byte64 complete_length) {
+    explicit BufferManager(byte64 complete_length) {
         byte64 total_chunks = complete_length / CHUNK_SIZE;
         byte64 last_chunk   = complete_length % CHUNK_SIZE;
         if (last_chunk != 0) {
@@ -200,16 +197,16 @@ public:
         }
     }
 
-    byte *get_buffer(byte64 index) const {
+    [[nodiscard]] byte *get_buffer(byte64 index) const {
         if (buffer_pool[index] == nullptr) {
             buffer_pool[index] = new byte[buffer_len[index]];
         }
         return buffer_pool[index];
     }
 
-    byte64 get_buffer_len(byte64 index) const { return buffer_len[index]; }
+    [[nodiscard]] byte64 get_buffer_len(byte64 index) const { return buffer_len[index]; }
 
-    byte64 get_pool_size() const { return pool_size; }
+    [[nodiscard]] byte64 get_pool_size() const { return pool_size; }
 
     void free_buffer(byte64 index) {
         delete[] buffer_pool[index];
@@ -226,16 +223,15 @@ public:
 
 /// @brief File manager for the XorCryptor
 class FileManager {
-    typedef unsigned char byte;
-    typedef uint64_t      byte64;
+    typedef uint64_t byte64;
 
 private:
     std::mutex   _file_lock;
     std::fstream _src_file, _out_file;
 
-    BufferManager *buffer_manager = nullptr;
-    int64_t       *buff_queue     = nullptr;
-    bool           is_open        = false;
+    BufferManager *buffer_manager;
+    int64_t       *buff_queue;
+    bool           is_open = false;
 
     std::mutex              thread_m;
     std::condition_variable condition;

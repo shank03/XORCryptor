@@ -36,7 +36,7 @@ XorCryptor::byte XorCryptor::generate_mask(byte v) {
     return byte(mask ^ v);
 }
 
-void XorCryptor::generate_cipher_bytes(byte *_cipher, byte64 _k_len, bool to_encrypt) const {
+void XorCryptor::generate_cipher_bytes(byte *_cipher, byte64 _k_len, byte *_table, bool to_encrypt) {
     for (byte64 i = 0; i < _k_len; i++) _cipher[i] = generate_mask(_cipher[i]);
 
     byte mask = 0, mode = 0, count, shift, value, bit_mask;
@@ -55,7 +55,7 @@ void XorCryptor::generate_cipher_bytes(byte *_cipher, byte64 _k_len, bool to_enc
     }
 }
 
-void XorCryptor::encrypt_bytes(byte *_src, byte64 _src_len, const byte *_cipher, byte64 _k_len) const {
+void XorCryptor::encrypt_bytes(byte *_src, byte64 _src_len, const byte *_cipher, byte64 _k_len, const byte *_table) {
     byte64 i;
     byte   mask = 0, mode = 0;
     for (i = 0; i < _src_len; i++) {
@@ -79,7 +79,7 @@ void XorCryptor::encrypt_bytes(byte *_src, byte64 _src_len, const byte *_cipher,
     }
 }
 
-void XorCryptor::decrypt_bytes(byte *_src, byte64 _src_len, const byte *_cipher, byte64 _k_len) const {
+void XorCryptor::decrypt_bytes(byte *_src, byte64 _src_len, const byte *_cipher, byte64 _k_len, const byte *_table) {
     byte64 i, k = 0;
     byte64 odd = _src_len & 1;
     byte   mask, mode;
@@ -104,22 +104,19 @@ void XorCryptor::decrypt_bytes(byte *_src, byte64 _src_len, const byte *_cipher,
 }
 
 bool XorCryptor::process_file(const std::string &src_path, const std::string &dest_path, const std::string &key,
-                              bool to_encrypt, bool preverse_src) {
+                              bool to_encrypt, bool preserve_src) {
     auto *fileManager = new FileManager(src_path, dest_path);
     if (!fileManager->is_opened()) return false;
 
-    byte *cipher_key = new byte[key.length()];
+    byte *cipher_key = new byte[key.length()], *_table = new byte[0x100];
     for (byte64 i = 0; i < key.length(); i++) cipher_key[i] = key[i];
-
-    _table = new byte[0x100];
-    generate_cipher_bytes(cipher_key, key.length(), to_encrypt);
+    generate_cipher_bytes(cipher_key, key.length(), _table, to_encrypt);
 
     byte64 file_length = std::filesystem::file_size(src_path);
     fileManager->dispatch_writer_thread(mStatusListener);
 
     std::mutex              m;
     std::atomic<byte64>     thread_count = 0;
-    std::atomic<byte64>     duration     = 0;
     std::condition_variable condition;
 
     byte64 chunk = 0, p_chunk = 0, read_time = 0, total_chunks = fileManager->get_buffer_mgr()->get_pool_size();
@@ -133,13 +130,13 @@ bool XorCryptor::process_file(const std::string &src_path, const std::string &de
         read_time += std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - read_beg).count();
 
         pool->queue(
-                [&thread_count, &condition, &duration, &begin,
-                 &to_encrypt, this](byte *_src, byte64 _s_len, const byte *_cipher, byte64 _c_len,
-                                    byte64 chunk_idx, byte64 *p_chunk, FileManager *fileManager, byte64 total_chunks) -> void {
+                [&thread_count, &condition,
+                 &to_encrypt, &_table, this](byte *_src, byte64 _s_len, const byte *_cipher, byte64 _c_len,
+                                             byte64 chunk_idx, byte64 *p_chunk, FileManager *fileManager, byte64 total_chunks) -> void {
                     if (to_encrypt) {
-                        encrypt_bytes(_src, _s_len, _cipher, _c_len);
+                        encrypt_bytes(_src, _s_len, _cipher, _c_len, _table);
                     } else {
-                        decrypt_bytes(_src, _s_len, _cipher, _c_len);
+                        decrypt_bytes(_src, _s_len, _cipher, _c_len, _table);
                     }
                     (*p_chunk)++;
                     catch_progress("Processing chunks", p_chunk, total_chunks);
@@ -171,12 +168,11 @@ bool XorCryptor::process_file(const std::string &src_path, const std::string &de
 
     delete[] cipher_key;
     delete[] _table;
-    _table = nullptr;
 
     catch_progress("Writing file", nullptr, 0);
     auto _ret = fileManager->wrap_up();
     delete fileManager;
-    if (!preverse_src) {
+    if (!preserve_src) {
         if (!std::filesystem::remove(src_path)) print_status("\n--- Could not delete source file ---\n");
     }
     return _ret;
@@ -211,14 +207,14 @@ void XorCryptor::catch_progress(const std::string &status, XorCryptor::byte64 *p
     mStatusListener->catch_progress(status, progress_ptr, total);
 }
 
-bool XorCryptor::encrypt_file(bool preverse_src, const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener) {
+bool XorCryptor::encrypt_file(bool preserve_src, const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener) {
     mStatusListener = listener;
-    return process_file(src_path, dest_path, key, true, preverse_src);
+    return process_file(src_path, dest_path, key, true, preserve_src);
 }
 
-bool XorCryptor::decrypt_file(bool preverse_src, const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener) {
+bool XorCryptor::decrypt_file(bool preserve_src, const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener) {
     mStatusListener = listener;
-    return process_file(src_path, dest_path, key, false, preverse_src);
+    return process_file(src_path, dest_path, key, false, preserve_src);
 }
 
 /// =================================================================================================
