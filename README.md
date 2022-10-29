@@ -4,6 +4,8 @@ Encrypts or decrypts the text or file using XOR bitwise operation.
 
 [More info.](About.md)
 
+**[General Library](https://github.com/shank03/XORCryptor/tree/lib)**
+
 ### CLI
 This cli encrypts or decrypts the file(s) in synchronized multi-buffered multithreaded way.
 
