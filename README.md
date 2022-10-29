@@ -9,4 +9,4 @@ could attempt to decrypt it but not get the correct result.
 
 Basic library with text encryption without synchronized multi-buffer multithreading.
 
-See [main.cpp](main.cpp) for example usage.
+See [C++](C++/main.cpp) / [Java](Java/Main.java) for example usage.
