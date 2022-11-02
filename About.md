@@ -4,6 +4,7 @@ Components for encrypting and decrypting:
   - [Generate Mask](#generate-mask)
   - [Generate Table](#generate-table)
   - [Encrpytion](#encrpytion)
+  - [Decryption](#decryption)
 
 ### Generate Mask
 
@@ -42,8 +43,13 @@ K     = 01 00 10 11 = 75
 ```
 for every 2 subsequent characters (i.e. arr[0]; arr[1]; then arr[2] arr[3]):
     mask and mode are generated from the table,
+
     where,
-    src[i]      = mask[i + 1]_mask[i] // first 4 btis _ next 4 bits <> table[src[i]]
+    mask[i] = 4 bits of MSB of table[src[i]]
+    mode[i] = 4 bits of LSB of table[src[i]]
+
+    then,
+    src[i]      = mask[i + 1]_mask[i]
     src[i + 1]  = mode[i + 1]_mode[i]
 
     then,
