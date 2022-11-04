@@ -26,6 +26,8 @@
 #include <thread>
 #include <vector>
 
+class ThreadPool;
+
 /// @brief A class to encrypt/decrypt files using XOR encryption
 class XorCryptor {
     typedef unsigned char byte;
@@ -82,7 +84,8 @@ private:
     /// @param to_encrypt   If true, encrypts the file, else decrypts the file
     /// @param preserve_src If true, src file is deleted
     /// @return             Returns true if the file is processed successfully, else false
-    bool process_file(const std::string &src_path, const std::string &dest_path, const std::string &key, bool to_encrypt, bool preserve_src);
+    bool process_file(const std::string &src_path, const std::string &dest_path, const std::string &key,
+                      ThreadPool *thread_pool, bool to_encrypt, bool preserve_src);
 
     void print_status(const std::string &status) const;
 
@@ -100,7 +103,8 @@ public:
     /// @param key          The key to encrypt
     /// @param listener     The status listener
     /// @return             true if the file is encrypted/decrypted successfully, else false
-    bool encrypt_file(bool preserve_src, const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener);
+    bool encrypt_file(bool preserve_src, ThreadPool *thread_pool,
+                      const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener);
 
     /// @brief              Decrypts the file
     /// @param preserve_src Src file shall be deleted when true
@@ -109,7 +113,8 @@ public:
     /// @param key          The key to decrypt
     /// @param listener     The status listener
     /// @return             true if the file is decrypted successfully, else false
-    bool decrypt_file(bool preserve_src, const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener);
+    bool decrypt_file(bool preserve_src, ThreadPool *thread_pool,
+                      const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener);
 
     ~XorCryptor() { delete mStatusListener; }
 };
@@ -222,7 +227,7 @@ public:
 };
 
 /// @brief File manager for the XorCryptor
-class FileManager {
+class FileHandler {
     typedef uint64_t byte64;
 
 private:
@@ -242,7 +247,7 @@ private:
     void wait_writer_thread();
 
 public:
-    FileManager(const std::string &src_path, const std::string &dest_path) {
+    FileHandler(const std::string &src_path, const std::string &dest_path) {
         if (std::filesystem::is_directory(src_path)) {
             is_open = false;
             return;
@@ -275,7 +280,7 @@ public:
 
     /// @brief              Writes the buffer to the file in the
     ///                     order of the chunk id
-    /// @param instance     Instance of the FileManager
+    /// @param instance     Instance of the FileHandler
     void dispatch_writer_thread(XorCryptor::StatusListener *instance);
 
     /// @brief      Closes the files and waits for writer thread to complete
@@ -283,7 +288,7 @@ public:
     bool wrap_up();
 
     /// @brief      Destructor
-    ~FileManager() {
+    ~FileHandler() {
         if (file_writer_thread->joinable()) file_writer_thread->join();
         delete file_writer_thread;
         delete buffer_manager;

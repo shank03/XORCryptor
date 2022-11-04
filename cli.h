@@ -1,4 +1,5 @@
 #ifndef CLI_PROGRESS_INDICATOR
+
 #define CLI_PROGRESS_INDICATOR
 
 #include <atomic>
