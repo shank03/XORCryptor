@@ -33,7 +33,7 @@ void CLIProgressIndicator::start_progress() {
             std::this_thread::sleep_for(std::chrono::milliseconds(150));
         }
         thread_complete = true;
-        condition.notify_all();
+        condition.notify_one();
     });
     mProgressThread->detach();
 }

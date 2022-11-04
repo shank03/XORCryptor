@@ -89,8 +89,6 @@ void XorCryptor::decrypt_bytes(byte *_src, byte64 _src_len, const byte *_cipher,
             mode = mask & 0xF;
             mask >>= 4;
             mode ^= mask;
-
-            _src[k++] = _table[((mask & 0xF) << 4) | (mode & 0xF)];
         } else {
             i++;
             mode = byte(_src[i] ^ _cipher[i % _k_len]);
@@ -98,8 +96,8 @@ void XorCryptor::decrypt_bytes(byte *_src, byte64 _src_len, const byte *_cipher,
 
             _src[k++] = _table[((mask & 0xF) << 4) | (mode & 0xF)];
             mask >>= 4, mode >>= 4;
-            _src[k++] = _table[((mask & 0xF) << 4) | (mode & 0xF)];
         }
+        _src[k++] = _table[((mask & 0xF) << 4) | (mode & 0xF)];
     }
 }
 
@@ -113,6 +111,7 @@ bool XorCryptor::process_file(const std::string &src_path, const std::string &de
     generate_cipher_bytes(cipher_key, key.length(), _table, to_encrypt);
 
     byte64 file_length = std::filesystem::file_size(src_path);
+    print_status("File size         = " + std::to_string(file_length / 1024ULL / 1024ULL) + " MB");
     fileManager->dispatch_writer_thread(mStatusListener);
 
     std::mutex              m;
@@ -159,7 +158,6 @@ bool XorCryptor::process_file(const std::string &src_path, const std::string &de
     delete pool;
 
     byte64 end = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - begin).count();
-    print_status("\nFile size         = " + std::to_string(file_length / 1024ULL / 1024ULL) + " MB");
     print_status("Time taken        = " + std::to_string(end) + " ms");
     print_status(" `- Read time     = " + std::to_string(read_time) + " ms");
     end -= read_time;
@@ -169,7 +167,7 @@ bool XorCryptor::process_file(const std::string &src_path, const std::string &de
     delete[] cipher_key;
     delete[] _table;
 
-    catch_progress("Writing file", nullptr, 0);
+    catch_progress("", nullptr, 0);
     auto _ret = fileManager->wrap_up();
     delete fileManager;
     if (!preserve_src) {
@@ -246,9 +244,9 @@ void FileManager::dispatch_writer_thread(XorCryptor::StatusListener *instance) {
                     curr_chunk_id++;
                 }
 
-                if (instance != nullptr) instance->catch_progress("Writing file", nullptr, 0);
+                if (instance != nullptr) instance->catch_progress("", nullptr, 0);
                 thread_complete = true;
-                condition.notify_all();
+                condition.notify_one();
             },
             instance);
     file_writer_thread->detach();
@@ -256,6 +254,7 @@ void FileManager::dispatch_writer_thread(XorCryptor::StatusListener *instance) {
 
 void FileManager::wait_writer_thread() {
     std::unique_lock<std::mutex> lock(thread_m);
+    if (thread_complete) return;
     condition.wait(lock, [&]() -> bool { return thread_complete; });
 }
 

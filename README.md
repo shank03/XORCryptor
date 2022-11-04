@@ -7,52 +7,103 @@ Encrypts or decrypts the text or file using XOR bitwise operation.
 **[General Library](https://github.com/shank03/XORCryptor/tree/lib)**
 
 ### CLI
-This cli encrypts or decrypts the file(s) in synchronized multi-buffered multithreaded way.
 
-So the only bottle neck is your disk read/write speed.
+This cli encrypts or decrypts the file(s) in synchronized multi-buffered multithreading way.
+
+So the only bottleneck is your disk read/write speed.
 
 ### Installing CLI
 
 ```shell
-git clone https://github.com/shank03/XORCryptor.git -b cli-linux
+git clone https://github.com/shank03/XORCryptor.git -b cli
 cd XORCryptor
 sudo make install
 ```
 
 Executable file will be present in `bin` as `xor_cryptor(.exe)`
 
-### Usage
+## Usage
 
 It will ask for key everytime you encrypt or decrypt some file
 
-```text
-xor_cryptor -h                       # help
-xor_cryptor -m e -f info.txt         # (light) encrypts the info.txt
-
-xor_cryptor -m d -f info.txt.xrc     # (light) decrypts the info.txt.xrc
+```shell
+$ xor_cryptor [-p] [-r] -m [e/d] -f [files...] [folders...]
 ```
 
-### How CLI works
+### Encrypt
 
-Let's say we have:
-
-```text
-random_folder
-    `- info.txt
+```shell
+$ xor_cryptor -m e -f file.ext
 ```
 
-And we run `xor_cryptor -m e -f info.txt`, now we'll have:
+```
+Before command:         After command:
 
-```text
-random_folder
-    `- info.txt.xrc
+random_folder           random_folder
+    |- some_fld             |- some_fld
+    |   |- t.txt            |   |- t.txt
+    |   |- p.txt            |   |- p.txt
+    |   |- in_fld           |   |- in_fld
+    |       |- v.mp4        |       |- v.mp4
+    |- file.ext             |- file.ext.xrc
 ```
 
-If we are to decrypt this `info.txt.xrc`,
+### With Folder
 
-we'll run `xor_cryptor -m d -f info.txt.xrc`
+```shell
+$ xor_cryptor -m e -f file.ext some_fld
+```
 
-This will decrypt the `info.txt.xrc` into `info.txt`
+```
+Before command:         After command:
+
+random_folder           random_folder
+    |- some_fld             |- some_fld
+    |   |- t.txt            |   |- t.txt.xrc
+    |   |- p.txt            |   |- p.txt.xrc
+    |   |- in_fld           |   |- in_fld
+    |       |- v.mp4        |       |- v.mp4
+    |- file.ext             |- file.ext.xrc
+```
+
+### Preserve source
+
+```shell
+$ xor_cryptor -p -m e -f file.ext some_fld
+```
+
+```
+Before command:         After command:
+
+random_folder           random_folder
+    |- some_fld             |- some_fld
+        |- t.txt            |   |- t.txt
+        |- p.txt            |   |- t.txt.xrc
+        |- in_fld           |   |- p.txt
+        |   |- v.mp4        |   |- p.txt.xrc
+        |- file.ext         |   |- in_fld
+                            |       |- v.mp4
+                            |- file.ext
+                            |- file.ext.xrc
+```
+
+### Iterate Recursively
+
+```shell
+$ xor_cryptor -r -m e -f file.ext some_fld
+```
+
+```
+Before command:         After command:
+
+random_folder           random_folder
+    |- some_fld             |- some_fld
+    |   |- t.txt            |   |- t.txt.xrc
+    |   |- p.txt            |   |- p.txt.xrc
+    |   |- in_fld           |   |- in_fld
+    |       |- v.mp4        |       |- v.mp4.xrc
+    |- file.ext             |- file.ext.xrc
+```
 
 ### NOTE !
 

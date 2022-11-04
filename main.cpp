@@ -1,4 +1,5 @@
 #include <iostream>
+#include <queue>
 
 #include "cli.h"
 #include "xor_cryptor.h"
@@ -6,11 +7,12 @@
 void print_help(bool error = false) {
     std::cout << "\n";
     if (!error) std::cout << "XOR Cryptor\n\n";
-    std::cout << "Usage:\n - xor_cryptor -p -m e -f file_name...\n\n";
+    std::cout << "Usage:\n - xor_cryptor [-p] [-r] -m [e/d] -f [files...] [folders...]\n\n";
     std::cout << "Parameters:\n";
-    std::cout << "\t-p            - Preserves the source file\n";
-    std::cout << "\t-m <mode>     - mode is either 'e' (encryption) or 'd' (decryption)\n";
-    std::cout << "\t-f <files>... - Encrypts/Decrypts the file(s) mentioned.\n";
+    std::cout << "    -p                    - Preserves the source file\n";
+    std::cout << "    -r                    - Iterates recursively if any folder found in <files> arg\n";
+    std::cout << "    -m <mode>             - mode is either 'e' (encryption) or 'd' (decryption)\n";
+    std::cout << "    -f <files/folders>... - Encrypts/Decrypts the file(s) mentioned.\n";
 }
 
 struct Status : XorCryptor::StatusListener {
@@ -35,6 +37,7 @@ int exec_cli_file(int mode, bool preserve_src, const std::string &file_name, con
 
     std::string dest_file_name(file_name);
     bool        res;
+    cli->print_status("\nProcessing: " + file_name);
     try {
         if (mode) {
             if (dest_file_name.find(XorCryptor::FILE_EXTENSION) != std::string::npos) {
@@ -65,6 +68,29 @@ void print_error(const std::string &error) {
     print_help(true);
 }
 
+void list_all_files(std::filesystem::path &root_path, std::vector<std::filesystem::path> *files) {
+    std::queue<std::filesystem::path> q;
+    q.push(root_path);
+    while (!q.empty()) {
+        std::filesystem::path path = q.front();
+        q.pop();
+
+        try {
+            for (const auto &entry : std::filesystem::directory_iterator(path)) {
+                if (entry.is_directory()) {
+                    q.push(entry.path());
+                    continue;
+                }
+                if (entry.is_regular_file()) {
+                    if (entry.path().extension() != ".ini") files->push_back(entry.path());
+                }
+            }
+        } catch (std::exception &e) {
+            std::cout << e.what() << "\n";
+        }
+    }
+}
+
 int main(int argc, char *argv[]) {
     if (argc == 1) {
         print_help();
@@ -74,13 +100,14 @@ int main(int argc, char *argv[]) {
     std::string args[argc];
     for (int i = 1; i < argc; i++) args[i] = argv[i];
 
-    std::vector<std::string> files;
-
-    int  mode         = 1;    // default: Encryption mode
-    bool has_help     = false;
-    bool preserve_src = false;
+    std::vector<std::filesystem::path> files_args, final_files;
+    int                                mode          = 1;    // default: Encryption mode
+    bool                               has_help      = false;
+    bool                               preserve_src  = false;
+    bool                               itr_recursive = false;
     for (int i = 0; i < argc; i++) {
         if (args[i] == "-p") preserve_src = true;
+        if (args[i] == "-r") itr_recursive = true;
         if (args[i] == "-h" || args[i] == "--help") {
             has_help = true;
             break;
@@ -101,7 +128,7 @@ int main(int argc, char *argv[]) {
                 return 1;
             }
             i++;
-            while (i < argc && args[i][0] != '-') files.push_back(args[i++]);
+            while (i < argc && args[i][0] != '-') files_args.emplace_back(args[i++]);
         }
     }
 
@@ -110,13 +137,35 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
-    if (files.empty()) {
+    if (files_args.empty()) {
         print_error("No file(s) specified");
         return 1;
     }
 
+    for (auto &path : files_args) {
+        if (std::filesystem::is_regular_file(path)) {
+            if (path.extension() != ".ini") final_files.push_back(path);
+        }
+        if (std::filesystem::is_directory(path)) {
+            std::cout << "Retrieving files from " << path << " ...\n";
+            if (itr_recursive) {
+                list_all_files(path, &final_files);
+            } else {
+                for (const auto &entry : std::filesystem::directory_iterator(path)) {
+                    if (entry.is_directory()) continue;
+                    if (entry.is_regular_file()) final_files.push_back(entry.path());
+                }
+            }
+        }
+    }
+    if (final_files.empty()) {
+        print_error("No file(s) specified");
+        return 1;
+    }
+    std::cout << "Total files: " << final_files.size() << "\n";
+
     std::string key;
-    std::cout << "Enter key: ";
+    std::cout << "\nEnter key: ";
     std::cin >> key;
 
     if (key.length() < 6) {
@@ -125,14 +174,14 @@ int main(int argc, char *argv[]) {
     }
 
     auto *cli = new CLIProgressIndicator();
-    int   res = 0;
-    for (auto &path : files) {
-        if (std::filesystem::is_directory(path)) continue;
-        if (exec_cli_file(mode, preserve_src, path, key, cli)) {
-            cli->print_status("Failed to process file: \"" + path + "\"");
+    int   res = 0, count = 0;
+    for (auto &path : final_files) {
+        if (exec_cli_file(mode, preserve_src, path.string(), key, cli)) {
+            cli->print_status("Failed to process file: \"" + path.string() + "\"");
             res = 1;
         }
-        cli->print_status("-----------------------");
+        count++;
+        cli->print_status("----------------------- [" + std::to_string(count) + " / " + std::to_string(final_files.size()) + "]");
     }
     cli->stop_progress();
     delete cli;
