@@ -105,10 +105,8 @@ void HMAC_SHA256::SHA256::pad() {
     uint64_t i   = m_block_len;
     uint8_t  end = m_block_len < 56 ? 56 : 64;
 
-    m_data[i++] = 0x80;    // Append a bit 1
-    while (i < end) {
-        m_data[i++] = 0x00;    // Pad with zeros
-    }
+    m_data[i++] = 0x80;                    // Append a bit 1
+    while (i < end) m_data[i++] = 0x00;    // Pad with zeros
 
     if (m_block_len >= 56) {
         transform();
@@ -141,11 +139,7 @@ void HMAC_SHA256::SHA256::revert(uint8_t *hash) {
 std::string HMAC_SHA256::toString(const uint8_t *digest) {
     std::stringstream s;
     s << std::setfill('0') << std::hex;
-
-    for (uint8_t i = 0; i < 32; i++) {
-        s << std::setw(2) << (unsigned int) digest[i];
-    }
-
+    for (uint8_t i = 0; i < 32; i++) s << std::setw(2) << (unsigned int) digest[i];
     return s.str();
 }
 

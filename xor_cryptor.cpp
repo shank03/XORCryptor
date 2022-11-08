@@ -102,22 +102,27 @@ void XorCryptor::decrypt_bytes(byte *_src, byte64 _src_len, const byte *_cipher,
     }
 }
 
+std::string *XorCryptor::generate_hash(const byte *cipher, const std::string &key) {
+    return new std::string(HMAC_SHA256::toString(
+            HMAC_SHA256::hmac(cipher, key.length(), reinterpret_cast<const byte *>(key.data()), key.length())));
+}
+
 bool XorCryptor::process_file(const std::string &src_path, const std::string &dest_path, const std::string &key,
                               ThreadPool *thread_pool, const XrcMode &mode, bool preserve_src) {
     auto *file_handler = new FileHandler(src_path, dest_path, mode);
     if (!file_handler->is_opened()) return false;
 
-    byte *cipher_key = new byte[key.length()], *_table = new byte[0x100];
-    for (byte64 i = 0; i < key.length(); i++) cipher_key[i] = key[i];
-    generate_cipher_bytes(cipher_key, key.length(), _table, mode);
+    byte *cipher = new byte[key.length()], *table = new byte[0x100];
+    for (size_t i = 0; i < key.length(); i++) cipher[i] = key[i];
+    generate_cipher_bytes(cipher, key.length(), table, mode);
+    auto *hash = generate_hash(cipher, key);
 
     if (mode == XrcMode::DECRYPT) {
-        std::string hash   = file_handler->read_hash();
-        byte       *b_data = new byte[key.length()];
-        for (size_t i = 0; i < key.length(); i++) b_data[i] = reinterpret_cast<const byte &>(key[i]);
-
-        std::string gen_hash = HMAC_SHA256::toString(HMAC_SHA256::hmac(cipher_key, key.length(), b_data, key.length()));
-        if (gen_hash != hash) {
+        std::string rh = file_handler->read_hash();
+        if (rh != *hash) {
+            file_handler->wrap_up();
+            std::filesystem::remove(dest_path);
+            print_status("Wrong key", true);
             return false;
         }
     }
@@ -141,12 +146,12 @@ bool XorCryptor::process_file(const std::string &src_path, const std::string &de
 
         thread_pool->queue(
                 [&thread_count, &condition,
-                 &mode, &_table, this](byte *_src, byte64 _s_len, const byte *_cipher, byte64 _c_len,
-                                       byte64 chunk_idx, byte64 *p_chunk, FileHandler *fileManager, byte64 total_chunks) -> void {
+                 &mode, &table, this](byte *_src, byte64 _s_len, const byte *_cipher, byte64 _c_len,
+                                      byte64 chunk_idx, byte64 *p_chunk, FileHandler *fileManager, byte64 total_chunks) -> void {
                     if (mode == XrcMode::ENCRYPT) {
-                        encrypt_bytes(_src, _s_len, _cipher, _c_len, _table);
+                        encrypt_bytes(_src, _s_len, _cipher, _c_len, table);
                     } else {
-                        decrypt_bytes(_src, _s_len, _cipher, _c_len, _table);
+                        decrypt_bytes(_src, _s_len, _cipher, _c_len, table);
                     }
                     (*p_chunk)++;
                     catch_progress("Processing chunks", p_chunk, total_chunks);
@@ -162,7 +167,7 @@ bool XorCryptor::process_file(const std::string &src_path, const std::string &de
                 },
                 file_handler->get_buffer_mgr()->get_buffer(chunk),
                 file_handler->get_buffer_mgr()->get_buffer_len(chunk),
-                cipher_key, key.length(), chunk, &p_chunk, file_handler, total_chunks);
+                cipher, key.length(), chunk, &p_chunk, file_handler, total_chunks);
     }
     std::unique_lock<std::mutex> lock(m);
     condition.wait(lock, [&]() -> bool { return thread_count == total_chunks; });
@@ -175,10 +180,10 @@ bool XorCryptor::process_file(const std::string &src_path, const std::string &de
     print_speed(file_length, end);
 
     catch_progress("", nullptr, 0);
-    auto _ret = file_handler->wrap_up(cipher_key, key);
+    auto _ret = file_handler->wrap_up(hash);
 
-    delete[] cipher_key;
-    delete[] _table;
+    delete[] cipher;
+    delete[] table;
     delete file_handler;
 
     if (!preserve_src) {
@@ -206,9 +211,9 @@ void XorCryptor::print_speed(byte64 fileSize, byte64 time_end) {
     print_status("Processed bytes in " + std::to_string(time_end) + " [ms] - " + str_speed.str() + unit);
 }
 
-void XorCryptor::print_status(const std::string &status) const {
+void XorCryptor::print_status(const std::string &status, bool imp) const {
     if (mStatusListener == nullptr) return;
-    mStatusListener->print_status(status);
+    mStatusListener->print_status(status, imp);
 }
 
 void XorCryptor::catch_progress(const std::string &status, XorCryptor::byte64 *progress_ptr, XorCryptor::byte64 total) const {
@@ -228,30 +233,48 @@ bool XorCryptor::decrypt_file(bool preserve_src, ThreadPool *thread_pool,
     return process_file(src_path, dest_path, key, thread_pool, XrcMode::DECRYPT, preserve_src);
 }
 
-/// =================================================================================================
-/// XorCryptor::FileHandler
-/// =================================================================================================
+XorCryptor::FileHandler::FileHandler(const std::string &src_path, const std::string &dest_path, const XorCryptor::XrcMode &xrc_mode) {
+    if (std::filesystem::is_directory(src_path)) {
+        is_open = false;
+        return;
+    }
+    _src_file.open(src_path, std::ios::in | std::ios::binary);
+    if (!_src_file.is_open()) {
+        is_open = false;
+        return;
+    }
+    _out_file.open(dest_path, std::ios::out | std::ios::binary);
+    mode = xrc_mode;
 
-void FileHandler::read_file(byte64 buff_idx) {
+    byte64 file_length = std::filesystem::file_size(src_path);
+    if (mode == XorCryptor::XrcMode::DECRYPT) file_length -= 64ULL;
+    buffer_manager = new BufferManager(file_length);
+    buff_queue     = new int64_t[buffer_manager->get_pool_size()];
+    is_open        = _src_file.is_open() && _out_file.is_open();
+    std::fill(buff_queue, buff_queue + buffer_manager->get_pool_size(), -1);
+}
+
+void XorCryptor::FileHandler::read_file(byte64 buff_idx) {
     std::lock_guard<std::mutex> lock_guard(_file_lock);
     _src_file.read((char *) buffer_manager->get_buffer(buff_idx), std::streamsize(buffer_manager->get_buffer_len(buff_idx)));
 }
 
-std::string FileHandler::read_hash() {
+std::string XorCryptor::FileHandler::read_hash() {
     _src_file.seekg(-64, std::ios::end);
-    char *buff = new char[64];
+    char *buff = new char[65];
     _src_file.read(buff, 64);
+    buff[64] = '\0';
     _src_file.seekg(0, std::ios::beg);
     std::string hash(buff);
     return hash;
 }
 
-void FileHandler::queue_chunk(byte64 chunk_idx) {
+void XorCryptor::FileHandler::queue_chunk(byte64 chunk_idx) {
     std::lock_guard<std::mutex> lock_guard(_file_lock);
     buff_queue[chunk_idx] = (int64_t) chunk_idx;
 }
 
-void FileHandler::dispatch_writer_thread(XorCryptor::StatusListener *instance) {
+void XorCryptor::FileHandler::dispatch_writer_thread(XorCryptor::StatusListener *instance) {
     if (file_writer_thread != nullptr) return;
     file_writer_thread = new std::thread(
             [this](XorCryptor::StatusListener *instance) -> void {
@@ -274,23 +297,41 @@ void FileHandler::dispatch_writer_thread(XorCryptor::StatusListener *instance) {
     file_writer_thread->detach();
 }
 
-void FileHandler::wait_writer_thread() {
+void XorCryptor::FileHandler::wait_writer_thread() {
     std::unique_lock<std::mutex> lock(thread_m);
     if (thread_complete) return;
     condition.wait(lock, [&]() -> bool { return thread_complete; });
 }
 
-bool FileHandler::wrap_up(const byte *key, const std::string &data) {
+bool XorCryptor::FileHandler::wrap_up(const std::string *hash) {
     wait_writer_thread();
+    if (mode == XrcMode::ENCRYPT && hash != nullptr) _out_file.write(hash->c_str(), std::streamsize(hash->length()));
 
-    if (mode == XorCryptor::XrcMode::ENCRYPT) {
-        byte *b_data = new byte[data.length()];
-        for (size_t i = 0; i < data.length(); i++) b_data[i] = reinterpret_cast<const byte &>(data[i]);
-
-        std::string hash = HMAC_SHA256::toString(HMAC_SHA256::hmac(key, data.length(), b_data, data.length()));
-        _out_file.write(hash.c_str(), std::streamsize(hash.length()));
-    }
     _src_file.close();
     _out_file.close();
     return !_src_file.is_open() && !_out_file.is_open();
+}
+
+XorCryptor::BufferManager::BufferManager(XorCryptor::byte64 complete_length) {
+    byte64 total_chunks = complete_length / CHUNK_SIZE;
+    byte64 last_chunk   = complete_length % CHUNK_SIZE;
+    if (last_chunk != 0) {
+        total_chunks++;
+    } else {
+        last_chunk = CHUNK_SIZE;
+    }
+
+    pool_size   = total_chunks;
+    buffer_pool = new byte *[pool_size];
+    buffer_len  = new byte64[pool_size];
+
+    std::fill(buffer_pool, buffer_pool + pool_size, nullptr);
+    for (byte64 i = 0; i < pool_size; i++) {
+        buffer_len[i] = i == pool_size - 1 ? last_chunk : CHUNK_SIZE;
+    }
+}
+
+XorCryptor::byte *XorCryptor::BufferManager::get_buffer(XorCryptor::byte64 index) const {
+    if (buffer_pool[index] == nullptr) buffer_pool[index] = new byte[buffer_len[index]];
+    return buffer_pool[index];
 }
