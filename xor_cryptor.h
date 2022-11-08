@@ -26,6 +26,8 @@
 #include <thread>
 #include <vector>
 
+#include "hmac_sha256.h"
+
 class ThreadPool;
 
 /// @brief A class to encrypt/decrypt files using XOR encryption
@@ -48,6 +50,11 @@ public:
         virtual ~StatusListener() = 0;
     };
 
+    enum XrcMode {
+        ENCRYPT,
+        DECRYPT
+    };
+
 private:
     StatusListener *mStatusListener = nullptr;
 
@@ -60,8 +67,8 @@ private:
     /// @param _cipher      Key to generate table for
     /// @param _k_len       Length of the key
     /// @param _table       Cipher table
-    /// @param to_encrypt   Whether to encrypt or decrypt
-    static void generate_cipher_bytes(byte *_cipher, byte64 _k_len, byte *_table, bool to_encrypt);
+    /// @param xrc_mode     Whether to encrypt or decrypt
+    static void generate_cipher_bytes(byte *_cipher, byte64 _k_len, byte *_table, const XrcMode &xrc_mode);
 
     /// @brief          Encrypts the buffer using the given key
     /// @param _src     Buffer to encrypt
@@ -81,11 +88,11 @@ private:
     /// @param src_path     Path of the file to be processed
     /// @param dest_path    Path of the processed file
     /// @param key          Key to process the file
-    /// @param to_encrypt   If true, encrypts the file, else decrypts the file
+    /// @param mode         Whether to encrypt or decrypt
     /// @param preserve_src If true, src file is deleted
     /// @return             Returns true if the file is processed successfully, else false
     bool process_file(const std::string &src_path, const std::string &dest_path, const std::string &key,
-                      ThreadPool *thread_pool, bool to_encrypt, bool preserve_src);
+                      ThreadPool *thread_pool, const XrcMode &mode, bool preserve_src);
 
     void print_status(const std::string &status) const;
 
@@ -116,7 +123,7 @@ public:
     bool decrypt_file(bool preserve_src, ThreadPool *thread_pool,
                       const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener);
 
-    ~XorCryptor() { delete mStatusListener; }
+    ~XorCryptor() { mStatusListener = nullptr; }
 };
 
 class ThreadPool {
@@ -228,15 +235,17 @@ public:
 
 /// @brief File manager for the XorCryptor
 class FileHandler {
+    typedef uint8_t  byte;
     typedef uint64_t byte64;
 
 private:
     std::mutex   _file_lock;
     std::fstream _src_file, _out_file;
 
-    BufferManager *buffer_manager;
-    int64_t       *buff_queue;
-    bool           is_open = false;
+    BufferManager      *buffer_manager;
+    XorCryptor::XrcMode mode;
+    int64_t            *buff_queue;
+    bool                is_open = false;
 
     std::mutex              thread_m;
     std::condition_variable condition;
@@ -247,7 +256,7 @@ private:
     void wait_writer_thread();
 
 public:
-    FileHandler(const std::string &src_path, const std::string &dest_path) {
+    FileHandler(const std::string &src_path, const std::string &dest_path, const XorCryptor::XrcMode &xrc_mode) {
         if (std::filesystem::is_directory(src_path)) {
             is_open = false;
             return;
@@ -258,7 +267,11 @@ public:
             return;
         }
         _out_file.open(dest_path, std::ios::out | std::ios::binary);
-        buffer_manager = new BufferManager(std::filesystem::file_size(src_path));
+        mode = xrc_mode;
+
+        byte64 file_length = std::filesystem::file_size(src_path);
+        if (mode == XorCryptor::XrcMode::DECRYPT) file_length -= 64ULL;
+        buffer_manager = new BufferManager(file_length);
         buff_queue     = new int64_t[buffer_manager->get_pool_size()];
         is_open        = _src_file.is_open() && _out_file.is_open();
         std::fill(buff_queue, buff_queue + buffer_manager->get_pool_size(), -1);
@@ -269,6 +282,8 @@ public:
     /// @brief      Status of opened the files
     /// @return     true if the file is opened successfully, else false
     bool is_opened() const { return is_open; }
+
+    std::string read_hash();
 
     /// @brief              Reads the buffer from @c _src_file into @param buff
     /// @param buff_idx     Buffer index to be read
@@ -285,7 +300,7 @@ public:
 
     /// @brief      Closes the files and waits for writer thread to complete
     /// @return     true if the files are closed successfully, else false
-    bool wrap_up();
+    bool wrap_up(const byte *key, const std::string &data);
 
     /// @brief      Destructor
     ~FileHandler() {

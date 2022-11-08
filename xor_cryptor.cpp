@@ -36,7 +36,7 @@ XorCryptor::byte XorCryptor::generate_mask(byte v) {
     return byte(mask ^ v);
 }
 
-void XorCryptor::generate_cipher_bytes(byte *_cipher, byte64 _k_len, byte *_table, bool to_encrypt) {
+void XorCryptor::generate_cipher_bytes(byte *_cipher, byte64 _k_len, byte *_table, const XrcMode &xrc_mode) {
     for (byte64 i = 0; i < _k_len; i++) _cipher[i] = generate_mask(_cipher[i]);
 
     byte mask = 0, mode = 0, count, shift, value, bit_mask;
@@ -49,8 +49,9 @@ void XorCryptor::generate_cipher_bytes(byte *_cipher, byte64 _k_len, byte *_tabl
             shift++;
             value >>= 2;
         }
-        mask                          = (mask << 4) | mode;
-        _table[to_encrypt ? i : mask] = to_encrypt ? mask : i;
+        mask = (mask << 4) | mode;
+
+        _table[xrc_mode == XrcMode::ENCRYPT ? i : mask] = xrc_mode == XrcMode::ENCRYPT ? mask : i;
         mask = mode = 0;
     }
 }
@@ -102,13 +103,24 @@ void XorCryptor::decrypt_bytes(byte *_src, byte64 _src_len, const byte *_cipher,
 }
 
 bool XorCryptor::process_file(const std::string &src_path, const std::string &dest_path, const std::string &key,
-                              ThreadPool *thread_pool, bool to_encrypt, bool preserve_src) {
-    auto *file_handler = new FileHandler(src_path, dest_path);
+                              ThreadPool *thread_pool, const XrcMode &mode, bool preserve_src) {
+    auto *file_handler = new FileHandler(src_path, dest_path, mode);
     if (!file_handler->is_opened()) return false;
 
     byte *cipher_key = new byte[key.length()], *_table = new byte[0x100];
     for (byte64 i = 0; i < key.length(); i++) cipher_key[i] = key[i];
-    generate_cipher_bytes(cipher_key, key.length(), _table, to_encrypt);
+    generate_cipher_bytes(cipher_key, key.length(), _table, mode);
+
+    if (mode == XrcMode::DECRYPT) {
+        std::string hash   = file_handler->read_hash();
+        byte       *b_data = new byte[key.length()];
+        for (size_t i = 0; i < key.length(); i++) b_data[i] = reinterpret_cast<const byte &>(key[i]);
+
+        std::string gen_hash = HMAC_SHA256::toString(HMAC_SHA256::hmac(cipher_key, key.length(), b_data, key.length()));
+        if (gen_hash != hash) {
+            return false;
+        }
+    }
 
     byte64 file_length = std::filesystem::file_size(src_path);
     print_status("File size         = " + std::to_string(file_length / 1024ULL / 1024ULL) + " MB");
@@ -129,9 +141,9 @@ bool XorCryptor::process_file(const std::string &src_path, const std::string &de
 
         thread_pool->queue(
                 [&thread_count, &condition,
-                 &to_encrypt, &_table, this](byte *_src, byte64 _s_len, const byte *_cipher, byte64 _c_len,
-                                             byte64 chunk_idx, byte64 *p_chunk, FileHandler *fileManager, byte64 total_chunks) -> void {
-                    if (to_encrypt) {
+                 &mode, &_table, this](byte *_src, byte64 _s_len, const byte *_cipher, byte64 _c_len,
+                                       byte64 chunk_idx, byte64 *p_chunk, FileHandler *fileManager, byte64 total_chunks) -> void {
+                    if (mode == XrcMode::ENCRYPT) {
                         encrypt_bytes(_src, _s_len, _cipher, _c_len, _table);
                     } else {
                         decrypt_bytes(_src, _s_len, _cipher, _c_len, _table);
@@ -162,12 +174,13 @@ bool XorCryptor::process_file(const std::string &src_path, const std::string &de
     print_status(" `- Process time  = " + std::to_string(end) + " ms\n");
     print_speed(file_length, end);
 
+    catch_progress("", nullptr, 0);
+    auto _ret = file_handler->wrap_up(cipher_key, key);
+
     delete[] cipher_key;
     delete[] _table;
-
-    catch_progress("", nullptr, 0);
-    auto _ret = file_handler->wrap_up();
     delete file_handler;
+
     if (!preserve_src) {
         if (!std::filesystem::remove(src_path)) print_status("\n--- Could not delete source file ---\n");
     }
@@ -206,13 +219,13 @@ void XorCryptor::catch_progress(const std::string &status, XorCryptor::byte64 *p
 bool XorCryptor::encrypt_file(bool preserve_src, ThreadPool *thread_pool,
                               const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener) {
     mStatusListener = listener;
-    return process_file(src_path, dest_path, key, thread_pool, true, preserve_src);
+    return process_file(src_path, dest_path, key, thread_pool, XrcMode::ENCRYPT, preserve_src);
 }
 
 bool XorCryptor::decrypt_file(bool preserve_src, ThreadPool *thread_pool,
                               const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener) {
     mStatusListener = listener;
-    return process_file(src_path, dest_path, key, thread_pool, false, preserve_src);
+    return process_file(src_path, dest_path, key, thread_pool, XrcMode::DECRYPT, preserve_src);
 }
 
 /// =================================================================================================
@@ -222,6 +235,15 @@ bool XorCryptor::decrypt_file(bool preserve_src, ThreadPool *thread_pool,
 void FileHandler::read_file(byte64 buff_idx) {
     std::lock_guard<std::mutex> lock_guard(_file_lock);
     _src_file.read((char *) buffer_manager->get_buffer(buff_idx), std::streamsize(buffer_manager->get_buffer_len(buff_idx)));
+}
+
+std::string FileHandler::read_hash() {
+    _src_file.seekg(-64, std::ios::end);
+    char *buff = new char[64];
+    _src_file.read(buff, 64);
+    _src_file.seekg(0, std::ios::beg);
+    std::string hash(buff);
+    return hash;
 }
 
 void FileHandler::queue_chunk(byte64 chunk_idx) {
@@ -258,8 +280,16 @@ void FileHandler::wait_writer_thread() {
     condition.wait(lock, [&]() -> bool { return thread_complete; });
 }
 
-bool FileHandler::wrap_up() {
+bool FileHandler::wrap_up(const byte *key, const std::string &data) {
     wait_writer_thread();
+
+    if (mode == XorCryptor::XrcMode::ENCRYPT) {
+        byte *b_data = new byte[data.length()];
+        for (size_t i = 0; i < data.length(); i++) b_data[i] = reinterpret_cast<const byte &>(data[i]);
+
+        std::string hash = HMAC_SHA256::toString(HMAC_SHA256::hmac(key, data.length(), b_data, data.length()));
+        _out_file.write(hash.c_str(), std::streamsize(hash.length()));
+    }
     _src_file.close();
     _out_file.close();
     return !_src_file.is_open() && !_out_file.is_open();
