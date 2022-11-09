@@ -29,13 +29,13 @@ Executable file will be present in `bin` as `xor_cryptor`
 It will ask for key everytime you encrypt or decrypt some file
 
 ```shell
-$ xor_cryptor [-p] [-r] -m [e/d] -f [files...] [folders...]
+$ xor_cryptor [-p] [-r] -[e/d] -f [files...] [folders...]
 ```
 
 ### Encrypt
 
 ```shell
-$ xor_cryptor -m e -f file.ext
+$ xor_cryptor -e -f file.ext
 ```
 
 ```
@@ -53,7 +53,7 @@ random_folder           random_folder
 ### With Folder
 
 ```shell
-$ xor_cryptor -m e -f file.ext some_fld
+$ xor_cryptor -e -f file.ext some_fld
 ```
 
 ```
@@ -71,7 +71,7 @@ random_folder           random_folder
 ### Preserve source
 
 ```shell
-$ xor_cryptor -p -m e -f file.ext some_fld
+$ xor_cryptor -p -e -f file.ext some_fld
 ```
 
 ```
@@ -92,7 +92,7 @@ random_folder           random_folder
 ### Iterate Recursively
 
 ```shell
-$ xor_cryptor -r -m e -f file.ext some_fld
+$ xor_cryptor -r -e -f file.ext some_fld
 ```
 
 ```
