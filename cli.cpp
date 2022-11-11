@@ -1,20 +1,17 @@
 #include "cli.h"
 
-#include <iomanip>
-#include <iostream>
-#include <vector>
-
 void CLIProgressIndicator::start_progress() {
     if (mProgressThread != nullptr) return;
     mRunIndicator = true;
 
     mProgressThread = new std::thread([this]() -> void {
         std::vector<std::string> progress_indicator { "-", "\\", "|", "/" };
-        int                      idx = 0, last_len = (int) mPreIndicatorText.length();
+        int                      idx = 0;
+        last_len                     = (int) mPreIndicatorText.length();
         while (mRunIndicator) {
             if (idx == (int) progress_indicator.size()) idx = 0;
 
-            std::cout << std::string(last_len, ' ') << "\r";
+            std::cout << "\r" << std::string(last_len, ' ') << "\r";
             std::cout.flush();
             std::cout << mPreIndicatorText << " " << progress_indicator[idx++];
 
@@ -32,15 +29,18 @@ void CLIProgressIndicator::start_progress() {
             std::cout << "\r";
             std::this_thread::sleep_for(std::chrono::milliseconds(150));
         }
+        std::cout << "\r" << std::string(last_len, ' ') << "\r";
+        std::cout.flush();
+        std::cout << mPreIndicatorText << "\n";
+
         thread_complete = true;
         condition.notify_one();
     });
-    mProgressThread->detach();
 }
 
 void CLIProgressIndicator::print_status(const std::string &status) {
     mTotal = 0;
-    std::cout << std::string(40, ' ') << "\r";
+    std::cout << "\r" << std::string(last_len, ' ') << "\r";
     std::cout.flush();
     std::cout << status << "\n";
 }
@@ -60,6 +60,7 @@ void CLIProgressIndicator::stop_progress() {
     std::unique_lock<std::mutex> lock(thread_m);
     mRunIndicator = false;
     mProgress     = nullptr;
+    mProgressThread->join();
     condition.wait(lock, [this]() -> bool { return thread_complete; });
-    delete mProgressThread;
+    mProgressThread = nullptr;
 }

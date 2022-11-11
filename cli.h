@@ -4,9 +4,12 @@
 
 #include <atomic>
 #include <condition_variable>
+#include <iomanip>
+#include <iostream>
 #include <mutex>
 #include <string>
 #include <thread>
+#include <vector>
 
 class CLIProgressIndicator {
     std::string       mPreIndicatorText;
@@ -14,6 +17,7 @@ class CLIProgressIndicator {
 
     uint64_t   *mProgress = nullptr;
     long double mTotal    = 0;
+    int         last_len  = 0;
 
     std::mutex              thread_m;
     std::condition_variable condition;
