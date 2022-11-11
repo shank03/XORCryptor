@@ -12,8 +12,6 @@ This cli encrypts or decrypts the file(s) in synchronized multi-buffered multith
 
 So the only bottleneck is your disk read/write speed.
 
-**[Windows Version](https://github.com/shank03/XORCryptor/tree/cli-win)**
-
 ### Installing CLI
 
 ```shell
