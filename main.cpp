@@ -111,9 +111,9 @@ int main(int argc, char *argv[]) {
                 },
                 count, &res, (*cmd_args->files)[i], cli, status, xrc);
     }
-    cli->print_status("All jobs queued");
     for (auto &t : *workers) t->join();
 
+    cli->print_status("All jobs queued");
     std::unique_lock<std::mutex> term_lock(term_mutex);
     term_cv.wait(term_lock, [&]() -> bool { return completed_jobs == total_jobs; });
 

@@ -2,7 +2,7 @@
 
 Encrypts or decrypts the text or file using XOR bitwise operation.
 
-[More info.](About.md)
+[About info.](About.md)
 
 **[General Library](https://github.com/shank03/XORCryptor/tree/lib)**
 
@@ -14,13 +14,16 @@ So the only bottleneck is your disk read/write speed.
 
 ### Installing CLI
 
-```shell
-git clone https://github.com/shank03/XORCryptor.git -b cli
-cd XORCryptor
-sudo make install
-```
+#### Windows
 
-Executable file will be present in `bin` as `xor_cryptor`
+- You have MSVC installed for compilation
+
+- ```bash
+    git clone https://github.com/shank03/XORCryptor.git -b cli
+    cd XORCryptor
+    install.bat
+    ```
+- Add `C:\Program Files\XORCryptor\bin` to environment variables
 
 ## Usage
 

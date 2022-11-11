@@ -272,7 +272,7 @@ XorCryptor::FileHandler::FileHandler(const std::string &src_path, const std::str
 void XorCryptor::FileHandler::read_file(byte64 buff_idx) {
     std::lock_guard<std::mutex> lock_guard(_file_lock);
     if (!_src_file.read((char *) buffer_manager->get_buffer(buff_idx), std::streamsize(buffer_manager->get_buffer_len(buff_idx)))) {
-        throw std::exception();
+        throw std::runtime_error("Unable to read file");
     }
 }
 

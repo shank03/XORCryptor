@@ -21,3 +21,6 @@ add_executable(
     hmac_sha256.cpp hmac_sha256.h
     xor_cryptor.cpp xor_cryptor.h
 )
+
+install(TARGETS XORCryptor DESTINATION bin)
+install(FILES README.md DESTINATION .)
