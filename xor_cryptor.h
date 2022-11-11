@@ -28,8 +28,6 @@
 
 #include "hmac_sha256.h"
 
-class ThreadPool;
-
 /// @brief A class to encrypt/decrypt files using XOR encryption
 class XorCryptor {
     typedef unsigned char byte;
@@ -112,10 +110,11 @@ private:
         bool is_opened() const { return is_open; }
 
         std::string read_hash();
+        void        write_hash(const std::string *hash);
         void        read_file(byte64 buff_idx);
         void        queue_chunk(byte64 chunk_id);
         void        dispatch_writer_thread(XorCryptor::StatusListener *instance);
-        bool        wrap_up(const std::string *hash = nullptr);
+        bool        wrap_up();
 
         ~FileHandler() {
             if (file_writer_thread->joinable()) file_writer_thread->join();
@@ -133,8 +132,7 @@ private:
     static void         decrypt_bytes(byte *_src, byte64 _src_len, const byte *_cipher, byte64 _k_len, const byte *_table);
     static std::string *generate_hash(const byte *cipher, const std::string &key);
 
-    bool process_file(const std::string &src_path, const std::string &dest_path, const std::string &key,
-                      ThreadPool *thread_pool, const XrcMode &mode, bool preserve_src);
+    bool process_file(const std::string &src_path, const std::string &dest_path, const std::string &key, const XrcMode &mode, bool preserve_src);
     void print_status(const std::string &status, bool imp = false) const;
     void print_speed(byte64 fileSize, byte64 time_end);
     void catch_progress(const std::string &status, byte64 *progress_ptr, byte64 total) const;
@@ -149,8 +147,7 @@ public:
     /// @param key          The key to encrypt
     /// @param listener     The status listener
     /// @return             true if the file is encrypted/decrypted successfully, else false
-    bool encrypt_file(bool preserve_src, ThreadPool *thread_pool,
-                      const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener);
+    bool encrypt_file(bool preserve_src, const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener);
 
     /// @brief              Decrypts the file
     /// @param preserve_src Src file shall be deleted when true
@@ -159,61 +156,9 @@ public:
     /// @param key          The key to decrypt
     /// @param listener     The status listener
     /// @return             true if the file is decrypted successfully, else false
-    bool decrypt_file(bool preserve_src, ThreadPool *thread_pool,
-                      const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener);
+    bool decrypt_file(bool preserve_src, const std::string &src_path, const std::string &dest_path, const std::string &key, StatusListener *listener);
 
     ~XorCryptor() { mStatusListener = nullptr; }
-};
-
-class ThreadPool {
-private:
-    std::mutex              queue_mutex;
-    std::condition_variable condition;
-    std::atomic<bool>       stop = false;
-
-    std::vector<std::thread>          worker_threads;
-    std::queue<std::function<void()>> jobs;
-
-public:
-    explicit ThreadPool(size_t threads = std::thread::hardware_concurrency()) {
-        stop = false;
-        for (size_t i = 0; i < threads; i++) {
-            worker_threads.emplace_back([this] {
-                for (;;) {
-                    std::function<void()> job;
-                    {
-                        std::unique_lock<std::mutex> lock(queue_mutex);
-                        condition.wait(lock, [&] { return stop || !jobs.empty(); });
-                        if (stop && jobs.empty()) return;
-                        job = std::move(jobs.front());
-                        jobs.pop();
-                    }
-                    job();
-                }
-            });
-        }
-    }
-
-    template <typename F, typename... A>
-    auto queue(F &&f, A &&...args) {
-        std::function<void()> task = std::bind(std::forward<F>(f), std::forward<A>(args)...);
-        {
-            std::unique_lock<std::mutex> lock(queue_mutex);
-            if (stop)
-                throw std::runtime_error("enqueue on stopped ThreadPool");
-            jobs.emplace([task] { task(); });
-        }
-        condition.notify_one();
-    }
-
-    ~ThreadPool() {
-        {
-            std::unique_lock<std::mutex> lock(queue_mutex);
-            stop = true;
-        }
-        condition.notify_all();
-        for (auto &worker : worker_threads) worker.join();
-    }
 };
 
 #endif    // XOR_CRYPTOR_H
