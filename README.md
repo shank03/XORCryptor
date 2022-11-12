@@ -14,16 +14,20 @@ So the only bottleneck is your disk read/write speed.
 
 ### Installing CLI
 
+```bash
+git clone https://github.com/shank03/XORCryptor.git -b cli
+cd XORCryptor
+```
+
 #### Windows
 
-- You have MSVC installed for compilation
-
-- ```bash
-    git clone https://github.com/shank03/XORCryptor.git -b cli
-    cd XORCryptor
-    install.bat
-    ```
+- Make sure have MSVC 2022 installed for compilation
+- Run `install.bat` as administrator
 - Add `C:\Program Files\XORCryptor\bin` to environment variables
+
+#### Linux
+- Make sure you have `gcc g++ make cmake ninja-build`
+- Run `sudo ./install.sh`
 
 ## Usage
 
