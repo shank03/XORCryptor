@@ -118,8 +118,12 @@ bool XorCryptor::process_file(const std::string &src_path, const std::string &de
     auto *hash = generate_hash(cipher, key);
 
     if (mode == XrcMode::DECRYPT) {
-        std::string rh = file_handler->read_hash();
-        if (rh != *hash) {
+        std::string *rh      = file_handler->read_hash();
+        bool         match_f = *rh != *hash;
+        rh->clear();
+        delete rh;
+
+        if (match_f) {
             file_handler->wrap_up();
             std::filesystem::remove(dest_path);
             throw std::runtime_error("Wrong key");
@@ -127,6 +131,8 @@ bool XorCryptor::process_file(const std::string &src_path, const std::string &de
     } else {
         file_handler->write_hash(hash);
     }
+    hash->clear();
+    delete hash;
 
     byte64 file_length = std::filesystem::file_size(src_path);
     print_status("File size         = " + std::to_string(file_length / 1024ULL / 1024ULL) + " MB");
@@ -276,12 +282,11 @@ void XorCryptor::FileHandler::read_file(byte64 buff_idx) {
     }
 }
 
-std::string XorCryptor::FileHandler::read_hash() {
+std::string *XorCryptor::FileHandler::read_hash() {
     char *buff = new char[65];
     _src_file.read(buff, 64);
     buff[64] = '\0';
-    std::string hash(buff);
-    return hash;
+    return new std::string(buff);
 }
 
 void XorCryptor::FileHandler::write_hash(const std::string *hash) {

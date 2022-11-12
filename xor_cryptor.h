@@ -109,12 +109,12 @@ private:
 
         bool is_opened() const { return is_open; }
 
-        std::string read_hash();
-        void        write_hash(const std::string *hash);
-        void        read_file(byte64 buff_idx);
-        void        queue_chunk(byte64 chunk_id);
-        void        dispatch_writer_thread(XorCryptor::StatusListener *instance);
-        bool        wrap_up();
+        std::string *read_hash();
+        void         write_hash(const std::string *hash);
+        void         read_file(byte64 buff_idx);
+        void         queue_chunk(byte64 chunk_id);
+        void         dispatch_writer_thread(XorCryptor::StatusListener *instance);
+        bool         wrap_up();
 
         ~FileHandler() {
             if (file_writer_thread->joinable()) file_writer_thread->join();
