@@ -34,13 +34,13 @@ cd XORCryptor
 It will ask for key everytime you encrypt or decrypt some file
 
 ```shell
-$ xor_cryptor [-p] [-r] -[e/d] -f [files...] [folders...]
+$ XORCryptor [-p] [-r] -[e/d] -f [files...] [folders...]
 ```
 
 ### Encrypt
 
 ```shell
-$ xor_cryptor -e -f file.ext
+$ XORCryptor -e -f file.ext
 ```
 
 ```
@@ -58,7 +58,7 @@ random_folder           random_folder
 ### With Folder
 
 ```shell
-$ xor_cryptor -e -f file.ext some_fld
+$ XORCryptor -e -f file.ext some_fld
 ```
 
 ```
@@ -76,7 +76,7 @@ random_folder           random_folder
 ### Preserve source
 
 ```shell
-$ xor_cryptor -p -e -f file.ext some_fld
+$ XORCryptor -p -e -f file.ext some_fld
 ```
 
 ```
@@ -97,7 +97,7 @@ random_folder           random_folder
 ### Iterate Recursively
 
 ```shell
-$ xor_cryptor -r -e -f file.ext some_fld
+$ XORCryptor -r -e -f file.ext some_fld
 ```
 
 ```
