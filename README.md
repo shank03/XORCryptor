@@ -15,13 +15,15 @@ So the only bottleneck is your disk read/write speed.
 ```bash
 git clone https://github.com/shank03/XORCryptor.git -b cli
 cd XORCryptor
+git submodule init
+git submodule update
 ```
 
 #### Windows
 
 - Make sure have MSVC 2022 installed for compilation
 - Run `install.bat` as administrator
-- Add `C:\Program Files\XORCryptor\` to environment variables
+- Add `C:\Program Files\XORCryptorCLI\` to environment variables
 
 #### Linux
 - Make sure you have `gcc g++ make cmake ninja-build`
@@ -34,13 +36,13 @@ cd XORCryptor
 It will ask for key everytime you encrypt or decrypt some file
 
 ```shell
-$ XORCryptor [-p] [-r] -[e/d] -f [files...] [folders...]
+$ XORCryptorCLI [-p] [-r] -[e/d] -f [files...] [folders...]
 ```
 
 ### Encrypt
 
 ```shell
-$ XORCryptor -e -f file.ext
+$ XORCryptorCLI -e -f file.ext
 ```
 
 ```
@@ -58,7 +60,7 @@ random_folder           random_folder
 ### With Folder
 
 ```shell
-$ XORCryptor -e -f file.ext some_fld
+$ XORCryptorCLI -e -f file.ext some_fld
 ```
 
 ```
@@ -76,7 +78,7 @@ random_folder           random_folder
 ### Preserve source
 
 ```shell
-$ XORCryptor -p -e -f file.ext some_fld
+$ XORCryptorCLI -p -e -f file.ext some_fld
 ```
 
 ```
@@ -97,7 +99,7 @@ random_folder           random_folder
 ### Iterate Recursively
 
 ```shell
-$ XORCryptor -r -e -f file.ext some_fld
+$ XORCryptorCLI -r -e -f file.ext some_fld
 ```
 
 ```
