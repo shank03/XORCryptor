@@ -1,56 +1,37 @@
-#include <iostream>
+#include "cli.hpp"
 
-#include "cli.h"
-#include "xor_cryptor.h"
+int exec_cli_file(cli::CmdArgs *cmd_args, const std::string &progress, size_t idx, const std::string &key,
+                  cli::ProgressIndicator *cli_pr, XorCryptor *xrc);
 
-struct CmdArgs {
-    std::vector<std::filesystem::path> *files;
+int process_file(const std::string &src_path, const std::string &dest_path, const std::string &key, cli::CmdArgs *cmd_args,
+                 cli::ProgressIndicator *cli_pr, XorCryptor *xrc);
 
-    bool                preserve_src;
-    bool                verbose;
-    XorCryptor::XrcMode mode;
-
-    CmdArgs(std::vector<std::filesystem::path> *p_files,
-            bool has_preserve_src, bool has_verbose,
-            XorCryptor::XrcMode m) : files(p_files),
-                                     preserve_src(has_preserve_src),
-                                     verbose(has_verbose),
-                                     mode(m) {}
-};
-
-int      exec_cli_file(CmdArgs *cmd_args, const std::string &progress, const std::filesystem::path &file_path, const std::string &key,
-                       CLIProgressIndicator *cli, XorCryptor::StatusListener *status, XorCryptor *xrc);
-void     list_all_files(std::filesystem::path &root_path, std::vector<std::filesystem::path> *files, XorCryptor::XrcMode &mode);
-CmdArgs *parse_args(std::vector<std::string> &args);
-void     print_help(bool error = false);
-void     print_error(const std::string &error);
-
-struct Status : XorCryptor::StatusListener {
-    CLIProgressIndicator *progressIndicator;
-    bool                  verbose;
-
-    explicit Status(CLIProgressIndicator *indicator, bool verbose) : progressIndicator(indicator),
-                                                                     verbose(verbose) {}
-
-    void print_status(const std::string &status, bool imp) override {
-        if (imp) {
-            progressIndicator->print_status(status);
-            return;
-        }
-        if (verbose) progressIndicator->print_status(status);
-    }
-
-    void catch_progress(const std::string &status, uint64_t *progress_ptr, uint64_t total) override {
-        if (verbose) {
-            progressIndicator->update_status(status);
-            progressIndicator->catch_progress(progress_ptr, total);
-        }
-    }
-};
+// struct Status : XorCryptor::StatusListener {
+//     ProgressIndicator *progressIndicator;
+//     bool               verbose;
+//
+//     explicit Status(ProgressIndicator *indicator, bool verbose) : progressIndicator(indicator),
+//                                                                   verbose(verbose) {}
+//
+//     void print_status(const std::string &status, bool imp) override {
+//         if (imp) {
+//             progressIndicator->print_status(status);
+//             return;
+//         }
+//         if (verbose) progressIndicator->print_status(status);
+//     }
+//
+//     void catch_progress(const std::string &status, uint64_t *progress_ptr, uint64_t total) override {
+//         if (verbose) {
+//             progressIndicator->update_status(status);
+//             progressIndicator->catch_progress(progress_ptr, total);
+//         }
+//     }
+// };
 
 int main(int argc, char *argv[]) {
     if (argc == 1) {
-        print_help();
+        cli::print_help();
         return 0;
     }
 
@@ -58,12 +39,12 @@ int main(int argc, char *argv[]) {
     for (int i = 1; i < argc; i++) {
         args[i - 1] = std::string(argv[i]);
         if (args[i - 1] == "-h" || args[i - 1] == "--help") {
-            print_help();
+            cli::print_help();
             return 0;
         }
     }
 
-    auto *cmd_args = parse_args(args);
+    auto *cmd_args = cli::CmdArgs::parse_args(args);
     if (cmd_args == nullptr) return 1;
 
     std::string key;
@@ -75,202 +56,161 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    auto *cli    = new CLIProgressIndicator();
-    auto *status = new Status(cli, cmd_args->verbose);
-    auto *xrc    = new XorCryptor();
+    auto *cli = new cli::ProgressIndicator();
+    auto *xrc = new XorCryptor(reinterpret_cast<const uint8_t *>(key.data()), key.length());
     cli->start_progress();
 
-    size_t                  max_jobs = std::thread::hardware_concurrency(), total_jobs = cmd_args->files->size();
-    auto                   *workers     = new std::vector<std::thread *>(total_jobs, nullptr);
-    std::atomic<size_t>     queued_jobs = 0, completed_jobs = 0;
-    std::mutex              hold_mutex, term_mutex;
-    std::condition_variable hold_cv, term_cv;
-
-    int res = 0, count = 0;
-    for (size_t i = 0; i < total_jobs; i++) {
-        if (queued_jobs == max_jobs) {
-            std::unique_lock<std::mutex> hold_lock(hold_mutex);
-            hold_cv.wait(hold_lock, [&]() -> bool { return queued_jobs != max_jobs; });
-        }
-
-        queued_jobs++;
+    auto *pool = new BS::thread_pool(std::thread::hardware_concurrency());
+    int   res = 0, count = 0;
+    for (size_t i = 0; i < cmd_args->get_files()->size(); i++) {
         count++;
-        (*workers)[i] = new std::thread(
-                [&queued_jobs, &hold_cv, &completed_jobs, &term_cv,
-                 &cmd_args, &key](int count, int *res, const std::filesystem::path &path,
-                                  CLIProgressIndicator *cli, Status *status, XorCryptor *xrc) -> void {
-                    if (exec_cli_file(cmd_args, "[" + std::to_string(count) + " / " + std::to_string(cmd_args->files->size()) + "] ",
-                                      path, key, cli, status, xrc)) {
+        pool->push_task(
+                [](int count, int *res, size_t idx, const std::string &key,
+                   cli::CmdArgs *cmd_args, cli::ProgressIndicator *cli, XorCryptor *xrc) -> void {
+                    if (exec_cli_file(cmd_args,
+                                      "[" + std::to_string(count) + " / " + std::to_string(cmd_args->get_files()->size()) + "] ",
+                                      idx, key, cli, xrc)) {
                         *res = 1;
                     }
-
-                    queued_jobs--;
-                    hold_cv.notify_one();
-                    completed_jobs++;
-                    term_cv.notify_one();
                 },
-                count, &res, (*cmd_args->files)[i], cli, status, xrc);
+                count, &res, i, key, cmd_args, cli, xrc);
     }
-    for (auto &t : *workers) t->join();
+    pool->wait_for_tasks();
+    delete pool;
 
     cli->print_status("All jobs queued");
-    std::unique_lock<std::mutex> term_lock(term_mutex);
-    term_cv.wait(term_lock, [&]() -> bool { return completed_jobs == total_jobs; });
-
     cli->stop_progress();
     delete cli;
     delete xrc;
-    delete status;
-    delete workers;
 
-    std::cout << (cmd_args->mode == XorCryptor::ENCRYPT ? "Encryption Completed\n" : "Decryption Completed\n");
+    std::cout << (cmd_args->get_mode() == XorCryptor::ENCRYPT ? "Encryption Completed\n" : "Decryption Completed\n");
     return res;
 }
 
-int exec_cli_file(CmdArgs *cmd_args, const std::string &progress, const std::filesystem::path &file_path, const std::string &key,
-                  CLIProgressIndicator *cli, XorCryptor::StatusListener *status, XorCryptor *xrc) {
-    std::string file_name = file_path.string();
-    std::string dest_file_name(file_name);
-    bool        res;
+void safe_delete_arr(uint8_t *arr, size_t l_arr) {
+    for (size_t i = 0; i < l_arr; i++) arr[i] = 0;
+    delete[] arr;
+}
+
+int exec_cli_file(cli::CmdArgs *cmd_args, const std::string &progress, size_t idx, const std::string &key,
+                  cli::ProgressIndicator *cli_pr, XorCryptor *xrc) {
+    const std::filesystem::path file_path = (*cmd_args->get_files())[idx];
+    std::string                 file_name = file_path.string();
+    std::string                 dest_file_name(file_name);
+    bool                        res;
 
     auto parent     = file_path.parent_path().parent_path().string();
     auto short_path = file_path.string().replace(0, parent.length(), "...");
-    if (cmd_args->verbose) {
-        cli->print_status("\nProcessing: " + short_path);
+    if (cmd_args->get_verbose()) {
+        cli_pr->print_status("\nProcessing: " + short_path);
     } else {
-        cli->catch_progress(nullptr, 0);
-        cli->update_status(progress + " - " + short_path);
+        cli_pr->catch_progress(nullptr, 0);
+        cli_pr->update_status(progress + " - " + short_path);
     }
     try {
-        if (cmd_args->mode == XorCryptor::XrcMode::ENCRYPT) {
-            if (dest_file_name.find(XorCryptor::FILE_EXTENSION) != std::string::npos) {
-                cli->print_status("This file is not for encryption");
+        if (cmd_args->get_mode() == XorCryptor::Mode::ENCRYPT) {
+            if (dest_file_name.find(cli::FileHandler::FILE_EXTENSION) != std::string::npos) {
+                cli_pr->print_status("This file is not for encryption");
                 return 1;
             }
-            dest_file_name.append(XorCryptor::FILE_EXTENSION);
-            res = xrc->encrypt_file(cmd_args->preserve_src, file_name, dest_file_name, key, status);
+            dest_file_name.append(cli::FileHandler::FILE_EXTENSION);
+            res = process_file(file_name, dest_file_name, key, cmd_args, cli_pr, xrc);
         } else {
-            if (dest_file_name.find(XorCryptor::FILE_EXTENSION) == std::string::npos) {
-                cli->print_status("This file is not for decryption");
+            if (dest_file_name.find(cli::FileHandler::FILE_EXTENSION) == std::string::npos) {
+                cli_pr->print_status("This file is not for decryption");
                 return 1;
             }
             dest_file_name = dest_file_name.substr(0, dest_file_name.length() - 4);
-            res            = xrc->decrypt_file(cmd_args->preserve_src, file_name, dest_file_name, key, status);
+            res            = process_file(file_name, dest_file_name, key, cmd_args, cli_pr, xrc);
         }
     } catch (std::exception &e) {
         std::cout << file_name + " == Error: " + std::string(e.what()) + "\n";
         return 1;
     }
     if (res) {
-        if (cmd_args->verbose) cli->print_status(progress + (cmd_args->mode == XorCryptor::XrcMode::ENCRYPT ? "Encrypted -> " + dest_file_name : "Decrypted -> " + dest_file_name));
+        if (cmd_args->get_verbose()) {
+            cli_pr->print_status(progress + (cmd_args->get_mode() == XorCryptor::Mode::ENCRYPT ? "Encrypted -> " + dest_file_name : "Decrypted -> " + dest_file_name));
+        }
     }
     return !res;
 }
 
-void list_all_files(std::filesystem::path &root_path, std::vector<std::filesystem::path> *files, XorCryptor::XrcMode &mode) {
-    std::queue<std::filesystem::path> queue;
-    queue.push(root_path);
-    while (!queue.empty()) {
-        auto path = queue.front();
-        queue.pop();
+int process_file(const std::string &src_path, const std::string &dest_path, const std::string &key, cli::CmdArgs *cmd_args,
+                 cli::ProgressIndicator *cli_pr, XorCryptor *xrc) {
+    auto  mode         = cmd_args->get_mode();
+    auto *file_handler = new cli::FileHandler(src_path, dest_path, mode);
+    if (!file_handler->is_opened()) return false;
 
-        try {
-            for (const auto &entry : std::filesystem::directory_iterator(path)) {
-                if (entry.is_directory()) {
-                    queue.push(entry);
-                    continue;
-                }
-                if (entry.is_regular_file()) {
-                    if (mode == XorCryptor::XrcMode::DECRYPT && entry.path().extension() == ".xrc") files->push_back(entry.path());
-                    if (mode == XorCryptor::XrcMode::ENCRYPT && entry.path().extension() != ".xrc") files->push_back(entry.path());
-                }
+    uint8_t *hash = HMAC_SHA256::hmac(xrc->get_cipher(), key.length(),
+                                      reinterpret_cast<const uint8_t *>(key.data()), key.length());
+
+    if (mode == XorCryptor::Mode::DECRYPT) {
+        uint8_t *r_hash  = file_handler->read_hash();
+        bool     match_f = [](const uint8_t *x, const uint8_t *y) -> bool {
+            for (size_t i = 0; i < 32; i++) {
+                if (x[i] != y[i]) return true;
             }
-        } catch (std::exception &e) {
-            std::cout << e.what() << "\n";
+            return false;
+        }(r_hash, hash);
+        safe_delete_arr(r_hash, 32);
+
+        if (match_f) {
+            file_handler->wrap_up();
+            std::filesystem::remove(dest_path);
+            throw std::runtime_error("Wrong key");
         }
+    } else {
+        file_handler->write_hash(hash);
     }
-}
+    safe_delete_arr(hash, 32);
 
-CmdArgs *parse_args(std::vector<std::string> &args) {
-    auto *file_args = new std::vector<std::filesystem::path>(),
-         *files     = new std::vector<std::filesystem::path>();
+    uint64_t file_length = std::filesystem::file_size(src_path);
+    if (cmd_args->get_verbose()) cli_pr->print_status("File size         = " + std::to_string(file_length / 1024ULL / 1024ULL) + " MB");
+    file_handler->dispatch_writer_thread(cmd_args->get_verbose() ? cli_pr : nullptr);
 
-    XorCryptor::XrcMode mode         = XorCryptor::XrcMode::INVALID;
-    bool                preserve_src = false, recursive = false, verbose = false;
-    for (size_t i = 0; i < args.size(); i++) {
-        if (args[i] == "-p") preserve_src = true;
-        if (args[i] == "-r") recursive = true;
-        if (args[i] == "-v") verbose = true;
-        if (args[i] == "-e") {
-            if (mode != XorCryptor::XrcMode::INVALID) {
-                print_error("Multiple modes found. Already defined: Decrypt");
-                return nullptr;
-            }
-            mode = XorCryptor::XrcMode::ENCRYPT;
-        }
-        if (args[i] == "-d") {
-            if (mode != XorCryptor::XrcMode::INVALID) {
-                print_error("Multiple modes found. Already defined: Encrypt");
-                return nullptr;
-            }
-            mode = XorCryptor::XrcMode::DECRYPT;
-        }
-        if (args[i] == "-f") {
-            if (i + 1 >= args.size()) {
-                print_error("No file(s)");
-                return nullptr;
-            }
-            i++;
-            while (i < args.size() && args[i][0] != '-') file_args->emplace_back(args[i++]);
-            i--;
-        }
-    }
-    if (file_args->empty()) {
-        print_error("No file(s)");
-        return nullptr;
-    }
+    uint64_t chunk = 0, p_chunk = 0, read_time = 0, total_chunks = file_handler->get_buffer_mgr()->get_pool_size();
+    if (cmd_args->get_verbose()) cli_pr->catch_progress("Processing chunks", &p_chunk, total_chunks);
 
-    std::cout << "Retrieving files ...\n";
-    for (auto &path : *file_args) {
-        if (std::filesystem::is_regular_file(path)) {
-            if (mode == XorCryptor::XrcMode::DECRYPT && path.extension() == ".xrc") files->push_back(path);
-            if (mode == XorCryptor::XrcMode::ENCRYPT && path.extension() != ".xrc") files->push_back(path);
-        }
-        if (std::filesystem::is_directory(path)) {
-            if (recursive) {
-                list_all_files(path, files, mode);
-            } else {
-                for (const auto &entry : std::filesystem::directory_iterator(path)) {
-                    if (entry.is_directory()) continue;
-                    if (entry.is_regular_file()) {
-                        if (mode == XorCryptor::XrcMode::DECRYPT && entry.path().extension() == ".xrc") files->push_back(entry.path());
-                        if (mode == XorCryptor::XrcMode::ENCRYPT && entry.path().extension() != ".xrc") files->push_back(entry.path());
+    auto  begin = std::chrono::steady_clock::now();
+    auto *pool  = new BS::thread_pool(std::thread::hardware_concurrency());
+    for (; chunk < total_chunks; chunk++) {
+        auto read_beg = std::chrono::steady_clock::now();
+        file_handler->read_file(chunk);
+        read_time += std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - read_beg).count();
+
+        pool->push_task(
+                [&mode, &file_handler, &cli_pr](uint8_t *src, uint64_t l_src, uint64_t chunk_idx, uint64_t *p_chunk,
+                                                XorCryptor *xrc, uint64_t total_chunks, bool verbose) -> void {
+                    if (mode == XorCryptor::Mode::ENCRYPT) {
+                        xrc->encrypt_bytes(src, l_src);
+                    } else {
+                        xrc->decrypt_bytes(src, l_src);
                     }
-                }
-            }
-        }
+                    (*p_chunk)++;
+                    if (verbose) cli_pr->catch_progress("Processing chunks", p_chunk, total_chunks);
+                    file_handler->queue_chunk(chunk_idx);
+                },
+                file_handler->get_buffer_mgr()->get_buffer(chunk),
+                file_handler->get_buffer_mgr()->get_buffer_len(chunk),
+                chunk, &p_chunk, xrc, total_chunks, cmd_args->get_verbose());
     }
-    if (files->empty()) {
-        print_error("No " + std::string(mode == XorCryptor::XrcMode::DECRYPT ? ".xrc " : "") + "file(s) found");
-        return nullptr;
+    pool->wait_for_tasks();
+    delete pool;
+
+    if (cmd_args->get_verbose()) {
+        uint64_t end = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - begin).count();
+        cli_pr->print_status("Time taken        = " + std::to_string(end) + " ms");
+        cli_pr->print_status(" `- Read time     = " + std::to_string(read_time) + " ms");
+        end -= read_time;
+        cli_pr->print_status(" `- Process time  = " + std::to_string(end) + " ms\n");
+        cli::print_speed(cli_pr, file_length, end);
+        cli_pr->catch_progress("", nullptr, 0);
     }
-    std::cout << files->size() << (mode == XorCryptor::XrcMode::DECRYPT ? " .xrc" : "") << " file(s) found\n";
-    return new CmdArgs(files, preserve_src, verbose, mode);
-}
+    auto _ret = file_handler->wrap_up();
+    delete file_handler;
 
-void print_help(bool error) {
-    std::cout << "\n";
-    if (!error) std::cout << "XOR Cryptor\n\n";
-    std::cout << "Usage:\n - xor_cryptor [-p] [-r] [-v] -[e/d] -f [files...] [folders...]\n\n";
-    std::cout << "Parameters:\n";
-    std::cout << "    -p                    - Preserves the source file\n";
-    std::cout << "    -r                    - Iterates recursively if any folder found in args\n";
-    std::cout << "    -v                    - Verbose; Prints all the possible stats\n";
-    std::cout << "    -e/d                  - encryption/decryption\n";
-    std::cout << "    -f <files/folders>... - Encrypts/Decrypts the file(s) mentioned.\n";
-}
-
-void print_error(const std::string &error) {
-    std::cout << "\nError: " << error << "\n";
-    print_help(true);
+    if (!cmd_args->get_preserve_src()) {
+        if (!std::filesystem::remove(src_path)) cli_pr->print_status("\n--- Could not delete source file ---\n");
+    }
+    return _ret;
 }

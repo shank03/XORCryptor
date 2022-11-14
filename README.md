@@ -23,13 +23,15 @@ cd XORCryptor
 
 - Make sure have MSVC 2022 installed for compilation
 - Run `install.bat` as administrator
-- Add `C:\Program Files\XORCryptor\bin` to environment variables
+- Add `C:\Program Files\XORCryptor\` to environment variables
 
 #### Linux
 - Make sure you have `gcc g++ make cmake ninja-build`
 - Run `sudo ./install.sh`
 
 ## Usage
+<details>
+<summary>Click to expand</summary>
 
 It will ask for key everytime you encrypt or decrypt some file
 
@@ -111,7 +113,11 @@ random_folder           random_folder
     |       |- v.mp4        |       |- v.mp4.xrc
     |- file.ext             |- file.ext.xrc
 ```
+</details>
 
 ### NOTE !
 
 > DO NOT FORGET THE KEY YOU GAVE FOR ENCRYPTION
+
+### Credits
+BS ThreadPool - [bshoshany](https://github.com/bshoshany/thread-pool)
