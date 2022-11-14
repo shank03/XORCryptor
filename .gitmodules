@@ -1,0 +1,4 @@
+[submodule "HMAC"]
+	path = HMAC
+	url = https://github.com/shank03/HMAC_SHA256.git
+	branch = main
