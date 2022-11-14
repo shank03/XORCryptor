@@ -29,5 +29,10 @@ target_include_directories(XORCryptorCLI PUBLIC HMAC)
 target_link_directories(XORCryptorCLI PRIVATE HMAC)
 target_link_libraries(XORCryptorCLI HMAC_SHA256)
 
+add_subdirectory(XRC)
+target_include_directories(XORCryptorCLI PUBLIC XRC)
+target_link_directories(XORCryptorCLI PRIVATE XRC)
+target_link_libraries(XORCryptorCLI XORCryptorLib)
+
 install(TARGETS XORCryptorCLI DESTINATION .)
 install(FILES README.md DESTINATION .)

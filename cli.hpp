@@ -2,9 +2,9 @@
 #define CLI
 
 #include "HMAC/hmac_sha256.h"
+#include "XRC/xor_cryptor.h"
 #include "all.h"
 #include "bs_thread_pool.hpp"
-#include "xor_cryptor.hpp"
 
 namespace cli {
 
