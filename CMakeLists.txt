@@ -20,7 +20,6 @@ add_executable(
     main.cpp
     all.h
     cli.hpp
-    xor_cryptor.hpp
     bs_thread_pool.hpp
 )
 
