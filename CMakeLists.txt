@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.23)
-project(XORCryptor)
+project(XORCryptorCLI)
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -16,7 +16,7 @@ else()
 endif()
 
 add_executable(
-    XORCryptor
+    XORCryptorCLI
     main.cpp
     all.h
     cli.hpp
@@ -25,9 +25,9 @@ add_executable(
 )
 
 add_subdirectory(HMAC)
-target_include_directories(XORCryptor PUBLIC HMAC)
-target_link_directories(XORCryptor PRIVATE HMAC)
-target_link_libraries(XORCryptor HMAC_SHA256)
+target_include_directories(XORCryptorCLI PUBLIC HMAC)
+target_link_directories(XORCryptorCLI PRIVATE HMAC)
+target_link_libraries(XORCryptorCLI HMAC_SHA256)
 
-install(TARGETS XORCryptor DESTINATION .)
+install(TARGETS XORCryptorCLI DESTINATION .)
 install(FILES README.md DESTINATION .)
