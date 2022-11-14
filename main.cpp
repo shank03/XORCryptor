@@ -141,8 +141,8 @@ int process_file(const std::string &src_path, const std::string &dest_path, cons
     auto *file_handler = new cli::FileHandler(src_path, dest_path, mode);
     if (!file_handler->is_opened()) return false;
 
-    uint8_t *hash = HMAC_SHA256::hmac(xrc->get_cipher(), key.length(),
-                                      reinterpret_cast<const uint8_t *>(key.data()), key.length());
+    uint8_t *hash = HMAC::hash(xrc->get_cipher(), key.length(),
+                               reinterpret_cast<const uint8_t *>(key.data()), key.length());
 
     if (mode == XorCryptor::Mode::DECRYPT) {
         uint8_t *r_hash  = file_handler->read_hash();

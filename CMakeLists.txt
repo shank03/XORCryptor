@@ -3,26 +3,31 @@ project(XORCryptor)
 
 set(CMAKE_CXX_STANDARD 17)
 
-if (MSVC)
+if(MSVC)
     add_compile_options("$<$<CONFIG:RELEASE>:/O2>" "/arch:AVX512" "/Oi" "/fp:precise" "/sdl" "/GL")
-else ()
+else()
     add_compile_options("-Wall" "-Wextra" "-Werror" "$<$<CONFIG:RELEASE>:-O3>")
 
-    if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+    if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
         add_compile_options("-stdlib=libc++")
-    else ()
+    else()
         # nothing special for gcc at the moment
-    endif ()
-endif ()
+    endif()
+endif()
 
 add_executable(
-        XORCryptor main.cpp
-        all.h
-        cli.hpp
-        hmac_sha256.cpp hmac_sha256.h
-        xor_cryptor.hpp
-        bs_thread_pool.hpp
+    XORCryptor
+    main.cpp
+    all.h
+    cli.hpp
+    xor_cryptor.hpp
+    bs_thread_pool.hpp
 )
+
+add_subdirectory(HMAC)
+target_include_directories(XORCryptor PUBLIC HMAC)
+target_link_directories(XORCryptor PRIVATE HMAC)
+target_link_libraries(XORCryptor HMAC_SHA256)
 
 install(TARGETS XORCryptor DESTINATION .)
 install(FILES README.md DESTINATION .)
