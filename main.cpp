@@ -6,29 +6,6 @@ int exec_cli_file(cli::CmdArgs *cmd_args, const std::string &progress, size_t id
 int process_file(const std::string &src_path, const std::string &dest_path, const std::string &key, cli::CmdArgs *cmd_args,
                  cli::ProgressIndicator *cli_pr, XorCryptor *xrc);
 
-// struct Status : XorCryptor::StatusListener {
-//     ProgressIndicator *progressIndicator;
-//     bool               verbose;
-//
-//     explicit Status(ProgressIndicator *indicator, bool verbose) : progressIndicator(indicator),
-//                                                                   verbose(verbose) {}
-//
-//     void print_status(const std::string &status, bool imp) override {
-//         if (imp) {
-//             progressIndicator->print_status(status);
-//             return;
-//         }
-//         if (verbose) progressIndicator->print_status(status);
-//     }
-//
-//     void catch_progress(const std::string &status, uint64_t *progress_ptr, uint64_t total) override {
-//         if (verbose) {
-//             progressIndicator->update_status(status);
-//             progressIndicator->catch_progress(progress_ptr, total);
-//         }
-//     }
-// };
-
 int main(int argc, char *argv[]) {
     if (argc == 1) {
         cli::print_help();
