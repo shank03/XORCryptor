@@ -36,13 +36,13 @@ git submodule update
 It will ask for key everytime you encrypt or decrypt some file
 
 ```shell
-$ XORCryptorCLI [-p] [-r] -[e/d] -f [files...] [folders...]
+$ xor_cryptor_cli [-p] [-r] -[e/d] -f [files...] [folders...]
 ```
 
 ### Encrypt
 
 ```shell
-$ XORCryptorCLI -e -f file.ext
+$ xor_cryptor_cli -e -f file.ext
 ```
 
 ```
@@ -60,7 +60,7 @@ random_folder           random_folder
 ### With Folder
 
 ```shell
-$ XORCryptorCLI -e -f file.ext some_fld
+$ xor_cryptor_cli -e -f file.ext some_fld
 ```
 
 ```
@@ -78,7 +78,7 @@ random_folder           random_folder
 ### Preserve source
 
 ```shell
-$ XORCryptorCLI -p -e -f file.ext some_fld
+$ xor_cryptor_cli -p -e -f file.ext some_fld
 ```
 
 ```
@@ -99,7 +99,7 @@ random_folder           random_folder
 ### Iterate Recursively
 
 ```shell
-$ XORCryptorCLI -r -e -f file.ext some_fld
+$ xor_cryptor_cli -r -e -f file.ext some_fld
 ```
 
 ```
@@ -118,6 +118,3 @@ random_folder           random_folder
 ### NOTE !
 
 > DO NOT FORGET THE KEY YOU GAVE FOR ENCRYPTION
-
-### Credits
-BS ThreadPool - [bshoshany](https://github.com/bshoshany/thread-pool)

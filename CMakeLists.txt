@@ -23,6 +23,8 @@ add_executable(
     task_pool.hpp
 )
 
+set_target_properties(XORCryptorCLI PROPERTIES OUTPUT_NAME xor_cryptor_cli)
+
 add_subdirectory(HMAC)
 target_include_directories(XORCryptorCLI PUBLIC HMAC)
 target_link_directories(XORCryptorCLI PRIVATE HMAC)
