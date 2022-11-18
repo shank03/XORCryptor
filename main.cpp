@@ -1,33 +1,82 @@
 #include "cli.hpp"
+#include "task_pool.hpp"
+
+struct BufferJobParams {
+    uint64_t                chunk_idx;
+    uint64_t               *p_chunk;
+    uint64_t                total_chunks;
+    XorCryptor             *xrc;
+    XorCryptor::Mode        mode;
+    cli::FileHandler       *file_handler;
+    cli::ProgressIndicator *cli_pr;
+    bool                    verbose;
+
+    BufferJobParams(uint64_t chunkIdx, uint64_t *pChunk, uint64_t totalChunks,
+                    XorCryptor *xrc, XorCryptor::Mode mode, cli::FileHandler *fileHandler, cli::ProgressIndicator *cliPr,
+                    bool verbose) : chunk_idx(chunkIdx),
+                                    p_chunk(pChunk),
+                                    total_chunks(totalChunks),
+                                    xrc(xrc),
+                                    mode(mode),
+                                    file_handler(fileHandler),
+                                    cli_pr(cliPr),
+                                    verbose(verbose) {}
+};
+
+struct BufferJobListener : pool::Listener<BufferJobParams> {
+    void onCall(BufferJobParams *t) override {
+        if (t->mode == XorCryptor::Mode::ENCRYPT) {
+            t->xrc->encrypt_bytes(t->file_handler->get_buffer_mgr()->get_buffer(t->chunk_idx),
+                                  t->file_handler->get_buffer_mgr()->get_buffer_len(t->chunk_idx));
+        } else {
+            t->xrc->decrypt_bytes(t->file_handler->get_buffer_mgr()->get_buffer(t->chunk_idx),
+                                  t->file_handler->get_buffer_mgr()->get_buffer_len(t->chunk_idx));
+        }
+        (*t->p_chunk)++;
+        if (t->verbose) t->cli_pr->catch_progress("Processing chunks", t->p_chunk, t->total_chunks);
+        t->file_handler->queue_chunk(t->chunk_idx);
+    }
+};
+
+typedef pool::TaskPool<BufferJobListener, BufferJobParams> BufferPool;
 
 int exec_cli_file(cli::CmdArgs *cmd_args, const std::string &progress, size_t idx, const std::string &key,
-                  cli::ProgressIndicator *cli_pr, XorCryptor *xrc);
+                  cli::ProgressIndicator *cli_pr, XorCryptor *xrc, BufferPool *buff_pool);
 
 int process_file(const std::string &src_path, const std::string &dest_path, const std::string &key, cli::CmdArgs *cmd_args,
-                 cli::ProgressIndicator *cli_pr, XorCryptor *xrc);
+                 cli::ProgressIndicator *cli_pr, XorCryptor *xrc, BufferPool *buff_pool);
 
-// struct Status : XorCryptor::StatusListener {
-//     ProgressIndicator *progressIndicator;
-//     bool               verbose;
-//
-//     explicit Status(ProgressIndicator *indicator, bool verbose) : progressIndicator(indicator),
-//                                                                   verbose(verbose) {}
-//
-//     void print_status(const std::string &status, bool imp) override {
-//         if (imp) {
-//             progressIndicator->print_status(status);
-//             return;
-//         }
-//         if (verbose) progressIndicator->print_status(status);
-//     }
-//
-//     void catch_progress(const std::string &status, uint64_t *progress_ptr, uint64_t total) override {
-//         if (verbose) {
-//             progressIndicator->update_status(status);
-//             progressIndicator->catch_progress(progress_ptr, total);
-//         }
-//     }
-// };
+struct FileJobParams {
+    int                     count;
+    int                    *res;
+    size_t                  idx;
+    const std::string      &key;
+    cli::CmdArgs           *cmd_args;
+    cli::ProgressIndicator *cli;
+    XorCryptor             *xrc;
+    BufferPool             *buff_pool;
+
+    FileJobParams(int count, int *res, size_t idx, const std::string &key,
+                  cli::CmdArgs *cmdArgs, cli::ProgressIndicator *cli, XorCryptor *xrc,
+                  BufferPool *buffPool) : count(count),
+                                          res(res),
+                                          idx(idx),
+                                          key(key),
+                                          cmd_args(cmdArgs),
+                                          cli(cli),
+                                          xrc(xrc),
+                                          buff_pool(buffPool) {}
+};
+
+struct FileJobListener : pool::Listener<FileJobParams> {
+    void onCall(FileJobParams *t) override {
+        if (exec_cli_file(t->cmd_args,
+                          "[" + std::to_string(t->count) + " / " + std::to_string(t->cmd_args->get_files()->size()) + "] ",
+                          t->idx, t->key, t->cli, t->xrc, t->buff_pool)) {
+            *t->res = 1;
+        }
+    }
+};
 
 int main(int argc, char *argv[]) {
     if (argc == 1) {
@@ -60,23 +109,19 @@ int main(int argc, char *argv[]) {
     auto *xrc = new XorCryptor(reinterpret_cast<const uint8_t *>(key.data()), key.length());
     cli->start_progress();
 
-    auto *pool = new BS::thread_pool(std::thread::hardware_concurrency());
-    int   res = 0, count = 0;
+    size_t thread_count = std::thread::hardware_concurrency();
+    auto  *pool         = new pool::TaskPool<FileJobListener, FileJobParams>(thread_count);
+    auto  *buffer_pools = new std::vector<BufferPool *>(thread_count);
+    for (size_t i = 0; i < thread_count; i++) (*buffer_pools)[i] = new BufferPool(thread_count);
+
+    int res = 0, count = 0;
     for (size_t i = 0; i < cmd_args->get_files()->size(); i++) {
         count++;
-        pool->push_task(
-                [](int count, int *res, size_t idx, const std::string &key,
-                   cli::CmdArgs *cmd_args, cli::ProgressIndicator *cli, XorCryptor *xrc) -> void {
-                    if (exec_cli_file(cmd_args,
-                                      "[" + std::to_string(count) + " / " + std::to_string(cmd_args->get_files()->size()) + "] ",
-                                      idx, key, cli, xrc)) {
-                        *res = 1;
-                    }
-                },
-                count, &res, i, key, cmd_args, cli, xrc);
+        pool->push_task(new FileJobParams(count, &res, i, key, cmd_args, cli, xrc, (*buffer_pools)[i % thread_count]));
     }
     pool->wait_for_tasks();
     delete pool;
+    delete buffer_pools;
 
     cli->print_status("All jobs queued");
     cli->stop_progress();
@@ -93,7 +138,7 @@ void safe_delete_arr(uint8_t *arr, size_t l_arr) {
 }
 
 int exec_cli_file(cli::CmdArgs *cmd_args, const std::string &progress, size_t idx, const std::string &key,
-                  cli::ProgressIndicator *cli_pr, XorCryptor *xrc) {
+                  cli::ProgressIndicator *cli_pr, XorCryptor *xrc, BufferPool *buff_pool) {
     const std::filesystem::path file_path = (*cmd_args->get_files())[idx];
     std::string                 file_name = file_path.string();
     std::string                 dest_file_name(file_name);
@@ -114,14 +159,14 @@ int exec_cli_file(cli::CmdArgs *cmd_args, const std::string &progress, size_t id
                 return 1;
             }
             dest_file_name.append(cli::FileHandler::FILE_EXTENSION);
-            res = process_file(file_name, dest_file_name, key, cmd_args, cli_pr, xrc);
+            res = process_file(file_name, dest_file_name, key, cmd_args, cli_pr, xrc, buff_pool);
         } else {
             if (dest_file_name.find(cli::FileHandler::FILE_EXTENSION) == std::string::npos) {
                 cli_pr->print_status("This file is not for decryption");
                 return 1;
             }
             dest_file_name = dest_file_name.substr(0, dest_file_name.length() - 4);
-            res            = process_file(file_name, dest_file_name, key, cmd_args, cli_pr, xrc);
+            res            = process_file(file_name, dest_file_name, key, cmd_args, cli_pr, xrc, buff_pool);
         }
     } catch (std::exception &e) {
         std::cout << file_name + " == Error: " + std::string(e.what()) + "\n";
@@ -136,7 +181,7 @@ int exec_cli_file(cli::CmdArgs *cmd_args, const std::string &progress, size_t id
 }
 
 int process_file(const std::string &src_path, const std::string &dest_path, const std::string &key, cli::CmdArgs *cmd_args,
-                 cli::ProgressIndicator *cli_pr, XorCryptor *xrc) {
+                 cli::ProgressIndicator *cli_pr, XorCryptor *xrc, BufferPool *pool) {
     auto  mode         = cmd_args->get_mode();
     auto *file_handler = new cli::FileHandler(src_path, dest_path, mode);
     if (!file_handler->is_opened()) return false;
@@ -171,31 +216,16 @@ int process_file(const std::string &src_path, const std::string &dest_path, cons
     uint64_t chunk = 0, p_chunk = 0, read_time = 0, total_chunks = file_handler->get_buffer_mgr()->get_pool_size();
     if (cmd_args->get_verbose()) cli_pr->catch_progress("Processing chunks", &p_chunk, total_chunks);
 
-    auto  begin = std::chrono::steady_clock::now();
-    auto *pool  = new BS::thread_pool(std::thread::hardware_concurrency());
+    auto begin = std::chrono::steady_clock::now();
     for (; chunk < total_chunks; chunk++) {
         auto read_beg = std::chrono::steady_clock::now();
         file_handler->read_file(chunk);
         read_time += std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - read_beg).count();
 
-        pool->push_task(
-                [&mode, &file_handler, &cli_pr](uint8_t *src, uint64_t l_src, uint64_t chunk_idx, uint64_t *p_chunk,
-                                                XorCryptor *xrc, uint64_t total_chunks, bool verbose) -> void {
-                    if (mode == XorCryptor::Mode::ENCRYPT) {
-                        xrc->encrypt_bytes(src, l_src);
-                    } else {
-                        xrc->decrypt_bytes(src, l_src);
-                    }
-                    (*p_chunk)++;
-                    if (verbose) cli_pr->catch_progress("Processing chunks", p_chunk, total_chunks);
-                    file_handler->queue_chunk(chunk_idx);
-                },
-                file_handler->get_buffer_mgr()->get_buffer(chunk),
-                file_handler->get_buffer_mgr()->get_buffer_len(chunk),
-                chunk, &p_chunk, xrc, total_chunks, cmd_args->get_verbose());
+        pool->push_task(new BufferJobParams(chunk, &p_chunk, total_chunks,
+                                            xrc, mode, file_handler, cli_pr, cmd_args->get_verbose()));
     }
     pool->wait_for_tasks();
-    delete pool;
 
     if (cmd_args->get_verbose()) {
         uint64_t end = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - begin).count();

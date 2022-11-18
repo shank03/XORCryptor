@@ -20,7 +20,7 @@ add_executable(
     main.cpp
     all.h
     cli.hpp
-    bs_thread_pool.hpp
+    task_pool.hpp
 )
 
 add_subdirectory(HMAC)

@@ -4,7 +4,6 @@
 #include "HMAC/hmac_sha256.h"
 #include "XRC/xor_cryptor.h"
 #include "all.h"
-#include "bs_thread_pool.hpp"
 
 namespace cli {
 
@@ -149,9 +148,9 @@ namespace cli {
         std::string       s_pre_indicator_text;
         std::atomic<bool> run_indicator = false;
 
-        uint64_t   *p_progress = nullptr;
-        long double _total     = 0;
-        int         last_len   = 0;
+        uint64_t        *p_progress = nullptr;
+        long double      _total     = 0;
+        std::atomic<int> last_len   = 0;
 
         std::mutex              m_thread;
         std::condition_variable condition_v;
@@ -186,7 +185,7 @@ namespace cli {
 
                     std::cout.flush();
                     std::cout << "\r";
-                    std::this_thread::sleep_for(std::chrono::milliseconds(150));
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
                 }
                 std::cout << "\r" << std::string(last_len, ' ') << "\r";
                 std::cout.flush();
