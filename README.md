@@ -2,7 +2,7 @@
 
 Encrypts or decrypts the text or file using XOR bitwise operation.
 
-[About info.](About.md)
+[About algorithm](About.md)
 
 ### CLI
 
@@ -21,15 +21,18 @@ git submodule update
 
 #### Windows
 
-- Make sure have MSVC 2022 installed for compilation
+- Make sure to have MSVC 2022 installed for compilation
 - Run `install.bat` as administrator
-- Add `C:\Program Files\XORCryptorCLI\` to environment variables
+- Add `C:\Program Files\XORCryptorCLI\bin` to environment variables
 
 #### Linux
+
 - Make sure you have `gcc g++ make cmake ninja-build`
+- Give executable permission by `chmod +x install.sh`
 - Run `sudo ./install.sh`
 
 ## Usage
+
 <details>
 <summary>Click to expand</summary>
 
@@ -113,6 +116,7 @@ random_folder           random_folder
     |       |- v.mp4        |       |- v.mp4.xrc
     |- file.ext             |- file.ext.xrc
 ```
+
 </details>
 
 ### NOTE !
