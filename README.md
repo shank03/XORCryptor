@@ -2,8 +2,6 @@
 
 Encrypts or decrypts the text or file using XOR bitwise operation.
 
-[About algorithm](About.md)
-
 ### CLI
 
 This cli encrypts or decrypts the file(s) in synchronized multi-buffered multithreading way.
