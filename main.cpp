@@ -144,7 +144,7 @@ int exec_cli_file(cli::CmdArgs *cmd_args, const std::string &progress, size_t id
     std::string                 dest_file_name(file_name);
     bool                        res;
 
-    auto parent     = file_path.parent_path().parent_path().string();
+    auto parent     = file_path.parent_path().parent_path().parent_path().parent_path().string();
     auto short_path = file_path.string().replace(0, parent.length(), "...");
     if (cmd_args->get_verbose()) {
         cli_pr->print_status("\nProcessing: " + short_path);

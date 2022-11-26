@@ -27,7 +27,7 @@ namespace cli {
         print_help(true);
     }
 
-    void list_all_files(std::filesystem::path &root_path, std::vector<std::filesystem::path> *files, XorCryptor::Mode &mode) {
+    void list_all_files(std::filesystem::path &root_path, std::map<std::filesystem::path, uint8_t> *files, XorCryptor::Mode &mode) {
         std::queue<std::filesystem::path> queue;
         queue.push(root_path);
         while (!queue.empty()) {
@@ -41,8 +41,10 @@ namespace cli {
                         continue;
                     }
                     if (entry.is_regular_file()) {
-                        if (mode == XorCryptor::Mode::DECRYPT && entry.path().extension() == ".xrc") files->push_back(entry.path());
-                        if (mode == XorCryptor::Mode::ENCRYPT && entry.path().extension() != ".xrc") files->push_back(entry.path());
+                        if (mode == XorCryptor::Mode::DECRYPT && entry.path().extension() == ".xrc")
+                            (*files)[std::filesystem::absolute(entry.path())]++;
+                        if (mode == XorCryptor::Mode::ENCRYPT && entry.path().extension() != ".xrc")
+                            (*files)[std::filesystem::absolute(entry.path())]++;
                     }
                 }
             } catch (std::exception &e) {
@@ -77,8 +79,8 @@ namespace cli {
         [[nodiscard]] XorCryptor::Mode get_mode() const { return mode; }
 
         static CmdArgs *parse_args(std::vector<std::string> &args) {
-            auto *file_args = new std::vector<std::filesystem::path>(),
-                 *files     = new std::vector<std::filesystem::path>();
+            auto *file_args = new std::vector<std::filesystem::path>();
+            auto *file_unq  = new std::map<std::filesystem::path, uint8_t>();
 
             XorCryptor::Mode mode         = XorCryptor::Mode::INVALID;
             bool             preserve_src = false, recursive = false, verbose = false;
@@ -118,29 +120,38 @@ namespace cli {
             std::cout << "Retrieving files ...\n";
             for (auto &path : *file_args) {
                 if (std::filesystem::is_regular_file(path)) {
-                    if (mode == XorCryptor::Mode::DECRYPT && path.extension() == ".xrc") files->push_back(path);
-                    if (mode == XorCryptor::Mode::ENCRYPT && path.extension() != ".xrc") files->push_back(path);
+                    if (mode == XorCryptor::Mode::DECRYPT && path.extension() == ".xrc") (*file_unq)[std::filesystem::absolute(path)]++;
+                    if (mode == XorCryptor::Mode::ENCRYPT && path.extension() != ".xrc") (*file_unq)[std::filesystem::absolute(path)]++;
                 }
                 if (std::filesystem::is_directory(path)) {
                     if (recursive) {
-                        list_all_files(path, files, mode);
+                        list_all_files(path, file_unq, mode);
                     } else {
                         for (const auto &entry : std::filesystem::directory_iterator(path)) {
                             if (entry.is_directory()) continue;
                             if (entry.is_regular_file()) {
-                                if (mode == XorCryptor::Mode::DECRYPT && entry.path().extension() == ".xrc") files->push_back(entry.path());
-                                if (mode == XorCryptor::Mode::ENCRYPT && entry.path().extension() != ".xrc") files->push_back(entry.path());
+                                if (mode == XorCryptor::Mode::DECRYPT && entry.path().extension() == ".xrc")
+                                    (*file_unq)[std::filesystem::absolute(entry.path())]++;
+                                if (mode == XorCryptor::Mode::ENCRYPT && entry.path().extension() != ".xrc")
+                                    (*file_unq)[std::filesystem::absolute(entry.path())]++;
                             }
                         }
                     }
                 }
             }
-            if (files->empty()) {
+            if (file_unq->empty()) {
                 print_error("No " + std::string(mode == XorCryptor::Mode::DECRYPT ? ".xrc " : "") + "file(s) found");
                 return nullptr;
             }
-            std::cout << files->size() << (mode == XorCryptor::Mode::DECRYPT ? " .xrc" : "") << " file(s) found\n";
-            return new CmdArgs(files, preserve_src, verbose, mode);
+            std::cout << file_unq->size() << (mode == XorCryptor::Mode::DECRYPT ? " .xrc" : "") << " file(s) found\n";
+
+            auto *files = new std::vector<std::filesystem::path>();
+            for (auto &file : *file_unq) files->emplace_back(file.first);
+            auto *res = new CmdArgs(files, preserve_src, verbose, mode);
+
+            delete file_args;
+            delete file_unq;
+            return res;
         }
     };
 
