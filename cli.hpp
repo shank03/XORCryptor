@@ -329,8 +329,16 @@ namespace cli {
                 is_open = false;
                 return;
             }
-            mode               = xrc_mode;
+            mode = xrc_mode;
+
             byte64 file_length = std::filesystem::file_size(src_path);
+            if (file_length == 0) {
+                f_src_file.close();
+                f_out_file.close();
+                is_open = false;
+                std::filesystem::remove(src_path);
+                return;
+            }
             if (mode == XorCryptor::Mode::DECRYPT) file_length -= 32ULL;
 
             buffer_manager = new BufferManager(file_length);
