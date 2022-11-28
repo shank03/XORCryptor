@@ -1,6 +1,6 @@
 [package]
 name = "xrc_cli"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2021"
 authors = ["Shashank Verma <shank03>"]
 license = "MIT"
@@ -8,7 +8,7 @@ description = "A cli for multi-threaded encryption/decryption of files/folder us
 repository = "https://github.com/shank03/XORCryptor"
 readme = "README.md"
 keywords = ["xor", "encrypt", "decrypt", "cli", "file"]
-categories = ["cryptography", "xor"]
+categories = ["cryptography", "command-line-interface", "command-line-utilities"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
