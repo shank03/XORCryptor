@@ -1,8 +1,0 @@
-[submodule "HMAC"]
-	path = HMAC
-	url = https://github.com/shank03/HMAC_SHA256.git
-	branch = main
-[submodule "XRC"]
-	path = XRC
-	url = https://github.com/shank03/XORCryptorLib.git
-	branch = main
