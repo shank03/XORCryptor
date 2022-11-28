@@ -1,49 +1,47 @@
-# XORCryptor
+# `XORCryptor`
 
 Encrypts or decrypts the text or file using XOR bitwise operation.
 
-### CLI
+![](xrc.gif)
+
+### `CLI`
 
 This cli encrypts or decrypts the file(s) in synchronized multi-buffered multithreading way.
 
 So the only bottleneck is your disk read/write speed.
 
-### Installing CLI
-
-```bash
-git clone https://github.com/shank03/XORCryptor.git -b cli
-cd XORCryptor
-git submodule init
-git submodule update
-```
-
-#### Windows
-
-- Make sure to have MSVC 2022 installed for compilation
-- Run `install.bat` as administrator
-- Add `C:\Program Files\XORCryptorCLI\bin` to environment variables
-
-#### Linux
-
-- Make sure you have `gcc g++ make cmake ninja-build`
-- Give executable permission by `chmod +x install.sh`
-- Run `sudo ./install.sh`
-
-## Usage
-
-<details>
-<summary>Click to expand</summary>
-
-It will ask for key everytime you encrypt or decrypt some file
+### `Installing CLI`
 
 ```shell
-$ xor_cryptor_cli [-p] [-r] -[e/d] -f [files...] [folders...]
+$ cargo install xrc_cli
 ```
+
+## `Usage`
+
+```shell
+Usage: xrc_cli [OPTIONS] <files>...
+
+Arguments:
+  <files>...  Files and folders to process
+
+Options:
+  -e, --encrypt  Encrypt
+  -d, --decrypt  Decrypt
+  -r             Recursively iterate folders if present
+  -j <jobs>      No. of jobs
+  -h, --help     Print help information
+  -V, --version  Print version information
+```
+
+<details>
+<summary>Click to expand for examples</summary>
+
+It will ask for key everytime you encrypt or decrypt some file
 
 ### Encrypt
 
 ```shell
-$ xor_cryptor_cli -e -f file.ext
+$ xrc_cli -e  file.ext
 ```
 
 ```
@@ -61,7 +59,7 @@ random_folder           random_folder
 ### With Folder
 
 ```shell
-$ xor_cryptor_cli -e -f file.ext some_fld
+$ xrc_cli -e  file.ext some_fld
 ```
 
 ```
@@ -79,7 +77,7 @@ random_folder           random_folder
 ### Preserve source
 
 ```shell
-$ xor_cryptor_cli -p -e -f file.ext some_fld
+$ xrc_cli -p -e file.ext some_fld
 ```
 
 ```
@@ -100,7 +98,7 @@ random_folder           random_folder
 ### Iterate Recursively
 
 ```shell
-$ xor_cryptor_cli -r -e -f file.ext some_fld
+$ xrc_cli -r -e  file.ext some_fld
 ```
 
 ```

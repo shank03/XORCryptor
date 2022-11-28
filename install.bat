@@ -1,1 +1,0 @@
-cmake --no-warn-unused-cli -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=TRUE -S. -Bbuild -G "Visual Studio 17 2022" -T host=x64 -A x64 && "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat" amd64 && cmake --build "build" --config Release --target clean -j 10 && cmake --build "build" --config Release --target install -j 10
