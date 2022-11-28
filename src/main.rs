@@ -58,7 +58,7 @@ fn main() {
 
     let multi_pr = MultiProgress::new();
     let style =
-        ProgressStyle::with_template("[{elapsed}] [{bar:30.cyan/yellow}] {pos:>5}/{len:5} {msg}")
+        ProgressStyle::with_template("[{elapsed}] [{bar:30.cyan/yellow}] {pos:>6}/{len:6} {msg}")
             .unwrap()
             .progress_chars("=>-");
 
