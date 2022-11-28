@@ -2,7 +2,9 @@
 
 [<img alt="crates.io" src="https://img.shields.io/crates/v/xrc_cli.svg?style=for-the-badge&color=fc8d62&logo=rust" height="22">](https://crates.io/crates/xrc_cli)
 
-Encrypts or decrypts the text or file using XOR bitwise operation.
+Encrypts or decrypts the file(s) using algorithm based on XOR bitwise operation.
+
+[About algorithm](https://github.com/shank03/XORCryptorLib/blob/main/About.md) -  [Implementation lib](https://crates.io/crates/xor_cryptor)
 
 ![](xrc.gif)
 
