@@ -7,7 +7,7 @@ license = "MIT"
 description = "A cli for multi-threaded encryption/decryption of files/folder using bitwise xor"
 repository = "https://github.com/shank03/XORCryptor"
 readme = "README.md"
-keywords = ["xor", "cryptor", "encryption", "decryption", "cipher", "cli", "file", "thread"]
+keywords = ["xor", "encrypt", "decrypt", "cli", "file"]
 categories = ["cryptography", "xor"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
