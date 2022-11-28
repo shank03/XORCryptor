@@ -1,5 +1,7 @@
 # `XORCryptor`
 
+[<img alt="crates.io" src="https://img.shields.io/crates/v/xrc_cli.svg?style=for-the-badge&color=fc8d62&logo=rust" height="22">](https://crates.io/crates/xrc_cli)
+
 Encrypts or decrypts the text or file using XOR bitwise operation.
 
 ![](xrc.gif)
@@ -20,7 +22,7 @@ $ cargo install xrc_cli
 
 ## `Usage`
 
-```shell
+```
 Usage: xrc_cli [OPTIONS] <files>...
 
 Arguments:
