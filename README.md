@@ -4,6 +4,8 @@ Encrypts or decrypts the text or file using XOR bitwise operation.
 
 ![](xrc.gif)
 
+Older C++ version: [CLI](https://github.com/shank03/XORCryptor/tree/cli)
+
 ### `CLI`
 
 This cli encrypts or decrypts the file(s) in synchronized multi-buffered multithreading way.
