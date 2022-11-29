@@ -17,6 +17,7 @@ mod file_handler;
 
 use cli::CliArgs;
 use file_handler::FileHandler;
+
 use hmac::{Hmac, Mac};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use sha2::Sha256;
@@ -50,11 +51,12 @@ fn main() {
         return;
     }
     let key = key.trim().replace("\n", "").replace("\r", "");
-    let len = key.len();
-    if len < 6 {
-        println!("Error: Key length cannot be less than 6");
+    let xrc = XORCryptor::new(&key);
+    if xrc.is_err() {
+        println!("Error: {}", xrc.err().unwrap());
         return;
     }
+    let xrc = Arc::new(xrc.unwrap());
 
     let multi_pr = MultiProgress::new();
     let style =
@@ -96,11 +98,13 @@ fn main() {
             break;
         }
         let key = key.clone();
+        let xrc = xrc.clone();
+
         let preserve = config.is_preserve();
         let to_encrypt = config.to_encrypt();
-        let pr_br = progress_bars[pbr_idx].clone();
         let n_jobs = config.get_jobs();
 
+        let pr_br = progress_bars[pbr_idx].clone();
         handles.push(thread::spawn(move || {
             let list = path_list;
             let pbr = pr_br;
@@ -108,7 +112,7 @@ fn main() {
 
             for path in list {
                 pbr.set_message(String::from(path.file_name().unwrap().to_str().unwrap()));
-                let res = exec_cli(&path, key.as_ref(), preserve, to_encrypt, n_jobs);
+                let res = exec_cli(&path, key.as_ref(), &xrc, preserve, to_encrypt, n_jobs);
                 match res {
                     Ok(op_path) => {
                         if op_path.is_some() {
@@ -137,6 +141,7 @@ fn main() {
 fn exec_cli(
     path: &path::PathBuf,
     key: &String,
+    xrc: &Arc<XORCryptor>,
     preserve: bool,
     to_encrypt: bool,
     n_jobs: usize,
@@ -156,7 +161,7 @@ fn exec_cli(
         dest_path = dest_path.replace(FileHandler::FILE_EXTENSION_STR, "");
     }
     let dest_path = path::PathBuf::from(dest_path);
-    process_file(path, &dest_path, key, preserve, to_encrypt, n_jobs)?;
+    process_file(path, &dest_path, key, xrc, preserve, to_encrypt, n_jobs)?;
     Ok(None)
 }
 
@@ -164,6 +169,7 @@ fn process_file(
     src_path: &path::PathBuf,
     dest_path: &path::PathBuf,
     key: &String,
+    xrc: &Arc<XORCryptor>,
     preserve: bool,
     to_encrypt: bool,
     n_jobs: usize,
@@ -177,18 +183,13 @@ fn process_file(
     let mut file_handler = FileHandler::new(src_path, to_encrypt)?;
     let mut dest_file = fs::File::create(dest_path)?;
 
-    let xrc = XORCryptor::new(key)?;
-
-    // Validate signature
-    {
-        let (hash, mac) = generate_hash(key.as_bytes(), key.as_bytes());
-        if to_encrypt {
-            dest_file.write(&hash.as_ref())?;
-        } else {
-            let f_hash = file_handler.read_hash()?;
-            mac.verify_slice(&f_hash.as_ref()[..])?;
-        }
-    }
+    validate_signature(
+        &xrc.get_cipher(),
+        key.as_bytes(),
+        to_encrypt,
+        &mut dest_file,
+        &mut file_handler,
+    )?;
 
     let total = file_handler.get_total_chunks();
     let (tx_id, rx_id) = sync::mpsc::channel::<i32>();
@@ -197,7 +198,6 @@ fn process_file(
 
     FileHandler::dispatch_writer_thread(Box::new(dest_file), total, tx_tr, rx_id, rx_sb)?;
 
-    let xrc = Arc::new(xrc);
     let mut i = 0u64;
     for _ in 0..n_jobs {
         let mut handles = Vec::<JoinHandle<()>>::new();
@@ -206,8 +206,8 @@ fn process_file(
             if i == total || t == n_jobs {
                 break;
             }
-            let buffer = file_handler.read_buffer(i)?;
             let xrc = xrc.clone();
+            let buffer = file_handler.read_buffer(i)?;
             let (tx, tx_sb) = (tx_id.clone(), tx_sb.clone());
 
             handles.push(thread::spawn(move || {
@@ -233,23 +233,20 @@ fn process_file(
     Ok(rx_tr.recv().unwrap())
 }
 
-fn generate_hash(k_cipher: &[u8], key: &[u8]) -> (Box<Vec<u8>>, Box<HmacSha256>) {
-    let mut cipher = vec![0u8; k_cipher.len()];
-    for i in 0..cipher.len() {
-        let v = k_cipher[i];
-        let (mut mask, mut vt) = (0, v);
-        while vt != 0 {
-            mask += if (vt & 1) == 1 { 1 } else { 0 };
-            vt >>= 1;
-        }
-        mask |= (8 - mask) << 4;
-        mask ^= (mask >> 4) | (mask << 4);
-        cipher[i] = mask ^ v;
-    }
-    let mut mac = HmacSha256::new_from_slice(&cipher).unwrap();
-    mac.update(&key);
-    (
-        Box::new(mac.clone().finalize().into_bytes().to_vec()),
-        Box::new(mac),
-    )
+fn validate_signature(
+    cipher: &Vec<u8>,
+    key: &[u8],
+    to_encrypt: bool,
+    dest_file: &mut fs::File,
+    file_handler: &mut FileHandler,
+) -> Result<(), Box<dyn Error>> {
+    let mut mac = HmacSha256::new_from_slice(cipher).unwrap();
+    mac.update(key);
+    let hash = mac.clone().finalize().into_bytes();
+    Ok(if to_encrypt {
+        dest_file.write(&hash.as_ref())?;
+    } else {
+        let f_hash = file_handler.read_hash()?;
+        mac.verify_slice(&f_hash.as_ref()[..])?;
+    })
 }
