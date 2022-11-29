@@ -198,14 +198,10 @@ fn process_file(
 
     FileHandler::dispatch_writer_thread(Box::new(dest_file), total, tx_tr, rx_id, rx_sb)?;
 
-    let mut i = 0u64;
-    for _ in 0..n_jobs {
+    let (mut i, n_jobs) = (0u64, if n_jobs > 1 { n_jobs / 2 } else { 1 });
+    loop {
         let mut handles = Vec::<JoinHandle<()>>::new();
-        let mut t = 0usize;
-        loop {
-            if i == total || t == n_jobs {
-                break;
-            }
+        for _ in 0..n_jobs {
             let xrc = xrc.clone();
             let buffer = file_handler.read_buffer(i)?;
             let (tx, tx_sb) = (tx_id.clone(), tx_sb.clone());
@@ -220,17 +216,25 @@ fn process_file(
                 tx.send(i as i32).unwrap();
                 tx_sb.send(buffer).unwrap();
             }));
+
             i += 1;
-            t += 1;
+            if i == total {
+                break;
+            }
         }
         for h in handles {
             h.join().unwrap();
         }
+        if i == total {
+            break;
+        }
     }
-    if !preserve {
+
+    let signal = rx_tr.recv().unwrap(); // Wait for writer thread
+    if signal && !preserve {
         fs::remove_file(src_path)?;
     }
-    Ok(rx_tr.recv().unwrap())
+    Ok(signal)
 }
 
 fn validate_signature(
