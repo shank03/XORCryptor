@@ -12,15 +12,6 @@
  * copies or substantial portions of the Software.
  */
 
-mod cli;
-mod file_handler;
-
-use cli::CliArgs;
-use file_handler::FileHandler;
-
-use hmac::{Hmac, Mac};
-use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use sha2::Sha256;
 use std::{
     error::Error,
     fs,
@@ -29,7 +20,17 @@ use std::{
     sync::{self, Arc},
     thread::{self, JoinHandle},
 };
+
+use hmac::{Hmac, Mac};
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use sha2::Sha256;
 use xor_cryptor::XORCryptor;
+
+use cli::CliArgs;
+use file_handler::FileHandler;
+
+mod cli;
+mod file_handler;
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -73,15 +74,15 @@ fn main() {
         if pool[i].is_empty() {
             break;
         }
-        let pb: ProgressBar;
-        if i == 0 {
-            pb = multi_pr.add(ProgressBar::new(pool[i].len() as u64));
+
+        let pb = if i == 0 {
+            multi_pr.add(ProgressBar::new(pool[i].len() as u64))
         } else {
-            pb = multi_pr.insert_after(
+            multi_pr.insert_after(
                 &progress_bars[i - 1],
                 ProgressBar::new(pool[i].len() as u64),
-            );
-        }
+            )
+        };
         pb.set_style(style.clone());
         progress_bars.push(Box::new(pb));
     }
@@ -97,9 +98,9 @@ fn main() {
         if path_list.is_empty() {
             break;
         }
+
         let key = key.clone();
         let xrc = xrc.clone();
-
         let preserve = config.is_preserve();
         let to_encrypt = config.to_encrypt();
         let n_jobs = config.get_jobs();
@@ -247,6 +248,7 @@ fn validate_signature(
     let mut mac = HmacSha256::new_from_slice(cipher).unwrap();
     mac.update(key);
     let hash = mac.clone().finalize().into_bytes();
+
     Ok(if to_encrypt {
         dest_file.write(&hash.as_ref())?;
     } else {

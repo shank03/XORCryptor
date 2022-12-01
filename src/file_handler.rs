@@ -27,8 +27,8 @@ pub struct FileHandler {
 }
 
 impl FileHandler {
-    pub const FILE_EXTENSION: &str = "xrc";
-    pub const FILE_EXTENSION_STR: &str = ".xrc";
+    pub const FILE_EXTENSION: &'static str = "xrc";
+    pub const FILE_EXTENSION_STR: &'static str = ".xrc";
 
     const CHUNK_SIZE: u64 = 1024u64 * 1024u64 * 64u64;
 

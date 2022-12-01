@@ -18,9 +18,9 @@ use std::{
 };
 
 use clap::{Arg, ArgAction, Command};
+use path_absolutize::*;
 
 use crate::file_handler::FileHandler;
-use path_absolutize::*;
 
 pub struct CliArgs {
     preserve: bool,
@@ -30,22 +30,22 @@ pub struct CliArgs {
 }
 
 impl CliArgs {
-    const ENCRYPT_CMD_ID: &str = "encrypt";
+    const ENCRYPT_CMD_ID: &'static str = "encrypt";
     const ENCRYPT_CMD_SHORT: char = 'e';
 
-    const DECRYPT_CMD_ID: &str = "decrypt";
+    const DECRYPT_CMD_ID: &'static str = "decrypt";
     const DECRYPT_CMD_SHORT: char = 'd';
 
-    const RECURSIVE_CMD_ID: &str = "recursive";
+    const RECURSIVE_CMD_ID: &'static str = "recursive";
     const RECURSIVE_CMD_SHORT: char = 'r';
 
-    const PRESERVE_SRC_CMD_ID: &str = "preserve";
+    const PRESERVE_SRC_CMD_ID: &'static str = "preserve";
     const PRESERVE_SRC_CMD_SHORT: char = 'p';
 
-    const JOB_CMD_ID: &str = "jobs";
+    const JOB_CMD_ID: &'static str = "jobs";
     const JOB_CMD_SHORT: char = 'j';
 
-    const FILES_CMD_ID: &str = "files";
+    const FILES_CMD_ID: &'static str = "files";
 
     pub fn parse_args<'a>() -> Result<CliArgs, &'a str> {
         let matches = CliArgs::get_command().get_matches();
