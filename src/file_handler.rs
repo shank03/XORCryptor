@@ -82,27 +82,38 @@ impl FileHandler {
         tx_tr: Sender<bool>,
         rx_id: Receiver<i32>,
         rx_sb: Receiver<Box<Vec<u8>>>,
-    ) -> Result<(), Error> {
+    ) {
         let mut dest_file = dest_file;
         thread::spawn(move || {
-            let mut idx = 0i32;
+            let (mut idx, mut broken) = (0i32, false);
             let mut pool: Vec<Option<Box<Vec<u8>>>> = vec![None; pool_size as usize];
             for rec in rx_id {
                 let buffer = rx_sb.recv().unwrap();
                 pool[rec as usize] = Some(buffer);
                 if rec == idx {
                     while idx < (pool_size as i32) && pool[idx as usize] != None {
-                        let _ = dest_file.write_all(pool[idx as usize].as_ref().unwrap());
+                        let w_res = dest_file.write_all(pool[idx as usize].as_ref().unwrap());
+                        if w_res.is_err() {
+                            broken = true;
+                            break;
+                        }
                         pool[idx as usize] = None;
                         idx += 1;
+                    }
+                    if broken {
+                        break;
                     }
                 }
                 if idx == pool_size as i32 {
                     break;
                 }
             }
-            tx_tr.send(true).unwrap();
+            if broken {
+                for i in 0..pool.len() {
+                    pool[i] = None;
+                }
+            }
+            tx_tr.send(!broken).unwrap();
         });
-        Ok(())
     }
 }

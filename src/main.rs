@@ -197,7 +197,7 @@ fn process_file(
     let (tx_tr, rx_tr) = sync::mpsc::channel::<bool>();
     let (tx_sb, rx_sb) = sync::mpsc::channel::<Box<Vec<u8>>>();
 
-    FileHandler::dispatch_writer_thread(Box::new(dest_file), total, tx_tr, rx_id, rx_sb)?;
+    FileHandler::dispatch_writer_thread(Box::new(dest_file), total, tx_tr, rx_id, rx_sb);
 
     let (mut i, n_jobs) = (0u64, if n_jobs > 1 { n_jobs / 2 } else { 1 });
     loop {
@@ -232,6 +232,9 @@ fn process_file(
     }
 
     let signal = rx_tr.recv().unwrap(); // Wait for writer thread
+    if !signal {
+        println!("Please retry: {:?}", src_path);
+    }
     if signal && !preserve {
         fs::remove_file(src_path)?;
     }
