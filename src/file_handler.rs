@@ -53,8 +53,8 @@ impl FileHandler {
         })
     }
 
-    pub fn get_total_chunks(&self) -> u64 {
-        self.total_chunks
+    pub fn get_total_chunks(&self) -> usize {
+        self.total_chunks as usize
     }
 
     pub fn read_hash(&mut self) -> Result<Box<Vec<u8>>, Error> {
@@ -77,43 +77,49 @@ impl FileHandler {
     }
 
     pub fn dispatch_writer_thread(
-        dest_file: Box<fs::File>,
-        pool_size: u64,
-        tx_tr: Sender<bool>,
-        rx_id: Receiver<i32>,
-        rx_sb: Receiver<Box<Vec<u8>>>,
+        dest_file: fs::File,
+        pool_size: usize,
+        tx_sig: Sender<bool>,
+        rx_trggr: Receiver<usize>,
+        rx_id: Receiver<usize>,
+        rx_sb: Receiver<Vec<u8>>,
     ) {
         let mut dest_file = dest_file;
         thread::spawn(move || {
-            let (mut idx, mut broken) = (0i32, false);
-            let mut pool: Vec<Option<Box<Vec<u8>>>> = vec![None; pool_size as usize];
-            for rec in rx_id {
-                let buffer = rx_sb.recv().unwrap();
-                pool[rec as usize] = Some(buffer);
-                if rec == idx {
-                    while idx < (pool_size as i32) && pool[idx as usize] != None {
-                        let w_res = dest_file.write_all(pool[idx as usize].as_ref().unwrap());
-                        if w_res.is_err() {
-                            broken = true;
-                            break;
-                        }
-                        pool[idx as usize] = None;
-                        idx += 1;
-                    }
-                    if broken {
-                        break;
-                    }
+            let mut broken = false;
+            let mut pool: Vec<Option<Vec<u8>>> = vec![None; pool_size as usize];
+            for trg_sig in rx_trggr {
+                if trg_sig == 0 {
+                    break;
                 }
-                if idx == pool_size as i32 {
+
+                let (mut chunks, mut ref_idx) = (trg_sig, usize::MAX);
+                while chunks != 0 {
+                    let recv_idx = rx_id.recv().unwrap();
+                    ref_idx = ref_idx.min(recv_idx);
+
+                    let buffer = rx_sb.recv().unwrap();
+                    pool[recv_idx] = Some(buffer);
+                    chunks -= 1;
+                }
+                chunks = trg_sig;
+                while chunks != 0 && !broken {
+                    broken = dest_file
+                        .write_all(pool[ref_idx].as_ref().unwrap())
+                        .is_err();
+                    pool[ref_idx] = None;
+                    ref_idx += 1;
+                    chunks -= 1;
+                }
+                tx_sig.send(broken).unwrap();
+                if broken {
                     break;
                 }
             }
-            if broken {
-                for i in 0..pool.len() {
-                    pool[i] = None;
-                }
+            for i in 0..pool.len() {
+                pool[i] = None;
             }
-            tx_tr.send(!broken).unwrap();
+            tx_sig.send(!broken).unwrap();
         });
     }
 }

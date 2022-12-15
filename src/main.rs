@@ -188,20 +188,21 @@ fn process_file(
         &mut file_handler,
     )?;
 
-    let total = file_handler.get_total_chunks();
-    let (tx_id, rx_id) = sync::mpsc::channel::<i32>();
-    let (tx_tr, rx_tr) = sync::mpsc::channel::<bool>();
-    let (tx_sb, rx_sb) = sync::mpsc::channel::<Box<Vec<u8>>>();
+    let pool_size = file_handler.get_total_chunks();
+    let (tx_id, rx_id) = sync::mpsc::channel::<usize>();
+    let (tx_trggr, rx_trggr) = sync::mpsc::channel::<usize>();
+    let (tx_sig, rx_sig) = sync::mpsc::channel::<bool>();
+    let (tx_sb, rx_sb) = sync::mpsc::channel::<Vec<u8>>();
 
-    FileHandler::dispatch_writer_thread(Box::new(dest_file), total, tx_tr, rx_id, rx_sb);
+    FileHandler::dispatch_writer_thread(dest_file, pool_size, tx_sig, rx_trggr, rx_id, rx_sb);
 
-    let (mut i, n_jobs) = (0u64, if n_jobs > 1 { n_jobs / 2 } else { 1 });
+    let (mut i, n_jobs) = (0usize, 1usize.max(n_jobs / 2));
     loop {
         let mut handles = Vec::<JoinHandle<()>>::new();
         for _ in 0..n_jobs {
             let xrc = xrc.clone();
-            let buffer = file_handler.read_buffer(i)?;
-            let (tx, tx_sb) = (tx_id.clone(), tx_sb.clone());
+            let buffer = file_handler.read_buffer(i as u64)?;
+            let (tx_id, tx_sb) = (tx_id.clone(), tx_sb.clone());
 
             handles.push(thread::spawn(move || {
                 let b_res = if to_encrypt {
@@ -209,24 +210,30 @@ fn process_file(
                 } else {
                     xrc.decrypt_vec(*buffer)
                 };
-                tx.send(i as i32).unwrap();
+                tx_id.send(i).unwrap();
                 tx_sb.send(b_res).unwrap();
             }));
 
             i += 1;
-            if i == total {
+            if i == pool_size {
                 break;
             }
         }
-        for h in handles {
+        let chunks = handles.len();
+        for h in handles.into_iter() {
             h.join().unwrap();
         }
-        if i == total {
+        tx_trggr.send(chunks).unwrap();
+        if rx_sig.recv().unwrap() {
+            break;
+        }
+        if i == pool_size {
+            tx_trggr.send(0).unwrap();
             break;
         }
     }
 
-    let signal = rx_tr.recv().unwrap(); // Wait for writer thread
+    let signal = rx_sig.recv().unwrap(); // Wait for writer thread
     if !signal {
         println!("Please retry: {:?}", src_path);
     }
