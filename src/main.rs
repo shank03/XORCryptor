@@ -99,11 +99,9 @@ fn main() {
             break;
         }
 
-        let key = key.clone();
-        let xrc = xrc.clone();
-        let preserve = config.is_preserve();
-        let to_encrypt = config.to_encrypt();
-        let n_jobs = config.get_jobs();
+        let (key, xrc) = (key.clone(), xrc.clone());
+        let (preserve, to_encrypt, n_jobs) =
+            (config.is_preserve(), config.to_encrypt(), config.get_jobs());
 
         let pr_br = progress_bars[pbr_idx].clone();
         handles.push(thread::spawn(move || {
@@ -117,7 +115,7 @@ fn main() {
                 match res {
                     Ok(op_path) => {
                         if op_path.is_some() {
-                            let _ = fs::remove_file(op_path.unwrap());
+                            println!("Invalid file: {}", op_path.unwrap());
                         }
                     }
                     Err(err) => {
@@ -150,13 +148,11 @@ fn exec_cli(
     let mut dest_path = String::from(path.clone().to_str().unwrap());
     if to_encrypt {
         if dest_path.ends_with(FileHandler::FILE_EXTENSION_STR) {
-            println!("Invalid file: {}", dest_path);
             return Ok(Some(dest_path));
         }
         dest_path.push_str(FileHandler::FILE_EXTENSION_STR);
     } else {
         if !dest_path.ends_with(FileHandler::FILE_EXTENSION_STR) {
-            println!("Invalid file: {}", dest_path);
             return Ok(Some(dest_path));
         }
         dest_path = dest_path.replace(FileHandler::FILE_EXTENSION_STR, "");
@@ -208,14 +204,13 @@ fn process_file(
             let (tx, tx_sb) = (tx_id.clone(), tx_sb.clone());
 
             handles.push(thread::spawn(move || {
-                let mut buffer = buffer;
-                if to_encrypt {
-                    xrc.encrypt_vec(buffer.as_mut());
+                let b_res = if to_encrypt {
+                    xrc.encrypt_vec(*buffer)
                 } else {
-                    xrc.decrypt_vec(buffer.as_mut());
-                }
+                    xrc.decrypt_vec(*buffer)
+                };
                 tx.send(i as i32).unwrap();
-                tx_sb.send(buffer).unwrap();
+                tx_sb.send(b_res).unwrap();
             }));
 
             i += 1;

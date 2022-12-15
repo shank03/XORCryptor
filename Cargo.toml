@@ -14,7 +14,7 @@ categories = ["cryptography", "command-line-interface", "command-line-utilities"
 
 [dependencies]
 clap = "4.0.27"
-xor_cryptor = "1.0.2"
+xor_cryptor = "1.1.0"
 path-absolutize = "3.0.14"
 hmac = "0.12.1"
 sha2 = "0.10.6"
