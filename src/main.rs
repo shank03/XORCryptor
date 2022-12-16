@@ -17,7 +17,7 @@ use std::{
     fs,
     io::{stdin, Write},
     path,
-    sync::{self, Arc},
+    sync::{self, Arc, Mutex},
     thread::{self, JoinHandle},
 };
 
@@ -28,9 +28,11 @@ use xor_cryptor::XORCryptor;
 
 use cli::CliArgs;
 use file_handler::FileHandler;
+use logger::Logger;
 
 mod cli;
 mod file_handler;
+mod logger;
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -42,39 +44,79 @@ fn main() {
     }
     let config = config.unwrap();
     let total_paths = config.get_path_count();
-    println!("{} files found.\n", total_paths);
+    let mut logger = Logger::init(config.get_log_path().clone());
 
+    logger.log_p(format!("{} files found.\n", total_paths).as_str());
+    let (key, xrc) = match get_key(&mut logger) {
+        Some(value) => value,
+        None => return,
+    };
+    let xrc = Arc::new(xrc);
+    let key = Arc::new(key);
+
+    let pool = config.get_paths();
+    let progress_bars = prepare_progress(&config, &mut logger, &pool);
+
+    let mut pbr_idx = 0usize;
+    let mut handles = Vec::<JoinHandle<()>>::new();
+    let logger = Arc::new(Mutex::new(logger));
+    for path_list in pool {
+        if path_list.is_empty() {
+            break;
+        }
+
+        let (key, xrc, logger) = (key.clone(), xrc.clone(), logger.clone());
+        let (preserve, to_encrypt, n_jobs) =
+            (config.is_preserve(), config.to_encrypt(), config.get_jobs());
+
+        let pr_br = progress_bars[pbr_idx].clone();
+        handles.push(thread::spawn(move || {
+            job(
+                path_list, pr_br, key, xrc, logger, preserve, to_encrypt, n_jobs,
+            );
+        }));
+        pbr_idx += 1;
+    }
+    for h in handles {
+        h.join().unwrap();
+    }
+    logger.lock().unwrap().inform();
+}
+
+fn get_key(logger: &mut Logger) -> Option<(String, XORCryptor)> {
     println!("Enter key: ");
     let mut key = String::new();
     let len = stdin().read_line(&mut key);
     if len.is_err() {
-        println!("Error reading key input");
-        return;
+        logger.log_p("Error reading key input");
+        return None;
     }
+
     let key = key.trim().replace("\n", "").replace("\r", "");
     let xrc = XORCryptor::new(&key);
     if xrc.is_err() {
-        println!("Error: {}", xrc.err().unwrap());
-        return;
+        logger.log_p(format!("Error: {}", xrc.err().unwrap()).as_str());
+        return None;
     }
-    let xrc = Arc::new(xrc.unwrap());
+    Some((key.clone(), xrc.unwrap()))
+}
 
+fn prepare_progress(
+    config: &CliArgs,
+    logger: &mut Logger,
+    pool: &Vec<Vec<path::PathBuf>>,
+) -> Vec<Box<ProgressBar>> {
+    let mut progress_bars = Vec::<Box<ProgressBar>>::new();
     let multi_pr = MultiProgress::new();
     let style =
         ProgressStyle::with_template("[{elapsed}] [{bar:30.cyan/yellow}] {pos:>6}/{len:6} {msg}")
             .unwrap()
             .progress_chars("=>-");
 
-    let key = Arc::new(key);
-    let mut handles = Vec::<JoinHandle<()>>::new();
-    let pool = config.get_paths();
-
-    let mut progress_bars = Vec::<Box<ProgressBar>>::new();
     for i in 0..config.get_jobs() {
         if pool[i].is_empty() {
             break;
         }
-
         let pb = if i == 0 {
             multi_pr.add(ProgressBar::new(pool[i].len() as u64))
         } else {
@@ -88,59 +130,65 @@ fn main() {
     }
 
     let _ = multi_pr.println(if config.to_encrypt() {
+        logger.log("\nEncrypting...");
         "\nEncrypting..."
     } else {
+        logger.log("\nDecrypting...");
         "\nDecrypting..."
     });
-
-    let mut pbr_idx = 0usize;
-    for path_list in pool {
-        if path_list.is_empty() {
-            break;
-        }
-
-        let (key, xrc) = (key.clone(), xrc.clone());
-        let (preserve, to_encrypt, n_jobs) =
-            (config.is_preserve(), config.to_encrypt(), config.get_jobs());
-
-        let pr_br = progress_bars[pbr_idx].clone();
-        handles.push(thread::spawn(move || {
-            let list = path_list;
-            let pbr = pr_br;
-            pbr.set_position(0);
-
-            for path in list {
-                pbr.set_message(String::from(path.file_name().unwrap().to_str().unwrap()));
-                let res = exec_cli(&path, key.as_ref(), &xrc, preserve, to_encrypt, n_jobs);
-                match res {
-                    Ok(op_path) => {
-                        if op_path.is_some() {
-                            println!("Invalid file: {}", op_path.unwrap());
-                        }
-                    }
-                    Err(err) => {
-                        pbr.println(format!(
-                            "Error: {}: {}",
-                            path.file_name().unwrap().to_str().unwrap(),
-                            err.to_string()
-                        ));
-                    }
-                }
-                pbr.inc(1);
-            }
-            pbr.finish_with_message("Done");
-        }));
-        pbr_idx += 1;
-    }
-    for h in handles {
-        h.join().unwrap();
-    }
+    progress_bars
 }
 
-fn exec_cli(
+fn job(
+    path_list: Vec<path::PathBuf>,
+    pr_br: Box<ProgressBar>,
+    key: Arc<String>,
+    xrc: Arc<XORCryptor>,
+    logger: Arc<Mutex<Logger>>,
+    preserve: bool,
+    to_encrypt: bool,
+    n_jobs: usize,
+) {
+    let list = path_list;
+    let pbr = pr_br;
+    pbr.set_position(0);
+    for path in list {
+        pbr.set_message(String::from(path.file_name().unwrap().to_str().unwrap()));
+        match validate_file(
+            &path,
+            key.as_ref(),
+            &xrc,
+            &logger,
+            preserve,
+            to_encrypt,
+            n_jobs,
+        ) {
+            Ok(op_path) => {
+                if op_path.is_some() {
+                    logger.lock().unwrap().inform_user_log();
+                    logger
+                        .lock()
+                        .unwrap()
+                        .log(format!("Invalid file: {}", op_path.unwrap()).as_str());
+                }
+            }
+            Err(err) => {
+                logger.lock().unwrap().inform_user_log();
+                logger.lock().unwrap().log(
+                    format!("Error: {}: {}", path.to_str().unwrap(), err.to_string()).as_str(),
+                );
+            }
+        }
+        pbr.inc(1);
+    }
+    pbr.finish_with_message("Done");
+}
+
+fn validate_file(
     path: &path::PathBuf,
     key: &String,
     xrc: &Arc<XORCryptor>,
+    logger: &Arc<Mutex<Logger>>,
     preserve: bool,
     to_encrypt: bool,
     n_jobs: usize,
@@ -158,7 +206,9 @@ fn exec_cli(
         dest_path = dest_path.replace(FileHandler::FILE_EXTENSION_STR, "");
     }
     let dest_path = path::PathBuf::from(dest_path);
-    process_file(path, &dest_path, key, xrc, preserve, to_encrypt, n_jobs)?;
+    process_file(
+        path, &dest_path, key, xrc, logger, preserve, to_encrypt, n_jobs,
+    )?;
     Ok(None)
 }
 
@@ -167,6 +217,7 @@ fn process_file(
     dest_path: &path::PathBuf,
     key: &String,
     xrc: &Arc<XORCryptor>,
+    logger: &Arc<Mutex<Logger>>,
     preserve: bool,
     to_encrypt: bool,
     n_jobs: usize,
@@ -235,7 +286,10 @@ fn process_file(
 
     let signal = rx_sig.recv().unwrap(); // Wait for writer thread
     if !signal {
-        println!("Please retry: {:?}", src_path);
+        logger
+            .lock()
+            .unwrap()
+            .log(format!("Please retry: {:?}", src_path).as_str());
     }
     if signal && !preserve {
         fs::remove_file(src_path)?;
