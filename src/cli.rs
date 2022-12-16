@@ -21,11 +21,13 @@ use clap::{Arg, ArgAction, Command};
 use path_absolutize::*;
 
 use crate::file_handler::FileHandler;
+use crate::logger::Logger;
 
 pub struct CliArgs {
     preserve: bool,
     to_encrypt: bool,
     paths: Vec<path::PathBuf>,
+    log_path: path::PathBuf,
     n_jobs: usize,
 }
 
@@ -78,6 +80,7 @@ impl CliArgs {
         if paths.is_empty() {
             return Err("No files/folders found");
         }
+        let log_path_ref = path::PathBuf::from(paths[0].clone());
 
         let mut files = HashMap::<path::PathBuf, u8>::new();
         CliArgs::list_files(&paths, &mut files, recursive, encrypt);
@@ -94,6 +97,7 @@ impl CliArgs {
             preserve,
             to_encrypt: encrypt,
             paths: list,
+            log_path: log_path_ref,
             n_jobs,
         })
     }
@@ -152,21 +156,19 @@ impl CliArgs {
         encrypt: bool,
     ) {
         for path in paths {
+            let path = path::PathBuf::from(path);
             let path_meta = fs::metadata(path.clone());
             if path_meta.is_err() {
-                println!("Unable to read metadata: {}", path);
+                println!("Unable to read metadata: {:?}", path);
                 continue;
             }
 
             let path_meta = path_meta.unwrap();
             if path_meta.is_file() {
-                path_list.insert(
-                    path::PathBuf::from(path)
-                        .absolutize()
-                        .unwrap()
-                        .to_path_buf(),
-                    0u8,
-                );
+                if path.file_name().unwrap() == Logger::LOGGER_FILE {
+                    continue;
+                }
+                path_list.insert(path.absolutize().unwrap().to_path_buf(), 0u8);
                 continue;
             }
             if path_meta.is_dir() {
@@ -175,7 +177,7 @@ impl CliArgs {
                 } else {
                     let list = fs::read_dir(path.clone());
                     if list.is_err() {
-                        println!("Error reading dir: {}", path);
+                        println!("Error reading dir: {:?}", path);
                         continue;
                     }
                     let list = list.unwrap();
@@ -197,6 +199,9 @@ impl CliArgs {
                             continue;
                         }
                         if entry_meta.is_file() {
+                            if entry.file_name().unwrap() == Logger::LOGGER_FILE {
+                                continue;
+                            }
                             let extension = entry.extension();
                             if extension == None {
                                 if encrypt {
@@ -222,12 +227,12 @@ impl CliArgs {
     }
 
     fn recursive_itr_dirs(
-        root_path: &String,
+        root_path: path::PathBuf,
         list: &mut HashMap<path::PathBuf, u8>,
         to_encrypt: bool,
     ) {
         let mut q = VecDeque::<path::PathBuf>::new();
-        q.push_back(path::PathBuf::from(root_path));
+        q.push_back(root_path);
         while !q.is_empty() {
             let path = q.front().unwrap().clone();
             q.pop_front();
@@ -256,6 +261,9 @@ impl CliArgs {
                     q.push_back(entry.clone());
                 }
                 if metadata.is_file() {
+                    if entry.file_name().unwrap() == Logger::LOGGER_FILE {
+                        continue;
+                    }
                     let extension = entry.extension();
                     if extension == None {
                         if to_encrypt {
@@ -291,6 +299,10 @@ impl CliArgs {
 
     pub fn get_jobs(&self) -> usize {
         self.n_jobs
+    }
+
+    pub fn get_log_path(&self) -> &path::PathBuf {
+        &self.log_path
     }
 
     pub fn get_paths(&self) -> Vec<Vec<path::PathBuf>> {
