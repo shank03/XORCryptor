@@ -4,7 +4,7 @@
 
 Encrypts or decrypts the file(s) using algorithm based on XOR bitwise operation.
 
-[About algorithm](https://github.com/shank03/XORCryptorLib/blob/main/About.md) -  [Implementation lib](https://crates.io/crates/xor_cryptor)
+[About algorithm](https://github.com/shank03/XORCryptor-Rust#about-algorithm) -  [Implementation lib](https://crates.io/crates/xor_cryptor)
 
 ![](xrc.gif)
 
