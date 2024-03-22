@@ -231,13 +231,18 @@ fn process_file(
     let mut file_handler = FileHandler::new(src_path, to_encrypt)?;
     let mut dest_file = fs::File::create(dest_path)?;
 
-    validate_signature(
-        &xrc.get_cipher(),
+    let validation_result = validate_signature(
+        unsafe { xrc.get_cipher().align_to::<u8>().1 },
         key.as_bytes(),
         to_encrypt,
         &mut dest_file,
         &mut file_handler,
-    )?;
+    );
+
+    if validation_result.is_err() {
+        fs::remove_file(dest_path)?;
+        return Err(validation_result.err().unwrap());
+    }
 
     let pool_size = file_handler.get_total_chunks();
     let (tx_id, rx_id) = sync::mpsc::channel::<usize>();
@@ -298,7 +303,7 @@ fn process_file(
 }
 
 fn validate_signature(
-    cipher: &Vec<u8>,
+    cipher: &[u8],
     key: &[u8],
     to_encrypt: bool,
     dest_file: &mut fs::File,
