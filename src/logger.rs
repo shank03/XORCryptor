@@ -11,7 +11,7 @@ pub struct Logger {
 impl Logger {
     pub const LOGGER_FILE: &'static str = "xrc_log.txt";
 
-    pub fn init(path: path::PathBuf) -> Self {
+    pub fn init(path: &path::PathBuf) -> Self {
         let log_path = path.join(path::PathBuf::from_str(Logger::LOGGER_FILE).unwrap());
         let file = fs::File::create(log_path.absolutize().unwrap());
         Logger {

@@ -1,27 +1,16 @@
-/*
- * Copyright (c) 2022, Shashank Verma <shashank.verma2002@gmail.com>(shank03)
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- */
-
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{HashSet, VecDeque},
     fs, path, thread,
 };
 
 use clap::{Arg, ArgAction, Command};
 use path_absolutize::*;
 
-use crate::file_handler::FileHandler;
-use crate::logger::Logger;
+use crate::{
+    err::{AppError, AppResult},
+    file_handler::FileHandler,
+    logger::Logger,
+};
 
 pub struct CliArgs {
     preserve: bool,
@@ -29,6 +18,7 @@ pub struct CliArgs {
     paths: Vec<path::PathBuf>,
     log_path: path::PathBuf,
     n_jobs: usize,
+    legacy: bool,
 }
 
 impl CliArgs {
@@ -37,6 +27,9 @@ impl CliArgs {
 
     const DECRYPT_CMD_ID: &'static str = "decrypt";
     const DECRYPT_CMD_SHORT: char = 'd';
+
+    const LEGACY_CMD_ID: &'static str = "legacy";
+    const LEGACY_CMD_SHORT: char = 'l';
 
     const RECURSIVE_CMD_ID: &'static str = "recursive";
     const RECURSIVE_CMD_SHORT: char = 'r';
@@ -49,23 +42,21 @@ impl CliArgs {
 
     const FILES_CMD_ID: &'static str = "files";
 
-    pub fn parse_args<'a>() -> Result<CliArgs, &'a str> {
+    pub fn parse_args<'a>() -> AppResult<CliArgs> {
         let matches = CliArgs::get_command().get_matches();
+
+        let legacy = matches.get_flag(CliArgs::LEGACY_CMD_ID);
 
         let encrypt = matches.get_flag(CliArgs::ENCRYPT_CMD_ID);
         let decrypt = matches.get_flag(CliArgs::DECRYPT_CMD_ID);
         if encrypt == decrypt {
-            return Err("Encrypt and Decrypt both exists, select one");
+            return Err(AppError::IncorrectFlags);
         }
         let recursive = matches.get_flag(CliArgs::RECURSIVE_CMD_ID);
         let preserve = matches.get_flag(CliArgs::PRESERVE_SRC_CMD_ID);
 
         let t_count = thread::available_parallelism();
-        let mut n_jobs: usize = if t_count.is_ok() {
-            t_count.unwrap().get()
-        } else {
-            4usize // default 4 jobs
-        };
+        let mut n_jobs = t_count.map(|v| v.get()).unwrap_or(4);
 
         let jobs = matches.get_one::<String>(CliArgs::JOB_CMD_ID);
         if jobs.is_some() {
@@ -78,20 +69,18 @@ impl CliArgs {
             .map(|f| f.clone())
             .collect::<Vec<_>>();
         if paths.is_empty() {
-            return Err("No files/folders found");
+            return Err(AppError::NoFilesOrFolder);
         }
         let log_path_ref = path::PathBuf::from(paths[0].clone());
 
-        let mut files = HashMap::<path::PathBuf, u8>::new();
+        let mut files = HashSet::<path::PathBuf>::new();
         CliArgs::list_files(&paths, &mut files, recursive, encrypt);
+
         if files.is_empty() {
-            return Err("No files/folders found");
+            return Err(AppError::NoFilesOrFolder);
         }
 
-        let mut list = Vec::<path::PathBuf>::new();
-        for (path, _) in files {
-            list.push(path);
-        }
+        let list: Vec<_> = files.into_iter().collect();
 
         Ok(CliArgs {
             preserve,
@@ -99,6 +88,7 @@ impl CliArgs {
             paths: list,
             log_path: log_path_ref,
             n_jobs,
+            legacy,
         })
     }
 
@@ -121,6 +111,15 @@ impl CliArgs {
                     .long(CliArgs::DECRYPT_CMD_ID)
                     .help("Decrypt")
                     .required_unless_present(CliArgs::ENCRYPT_CMD_ID)
+                    .action(ArgAction::SetTrue),
+            )
+            .arg(
+                Arg::new(CliArgs::LEGACY_CMD_ID)
+                    .short(CliArgs::LEGACY_CMD_SHORT)
+                    .long(CliArgs::LEGACY_CMD_ID)
+                    .help("Legacy for older v1")
+                    .long_help("Since xor_cryptor lib has been upgraded to v2 which is different and safer algorithm, select legacy flag if your data was encrypted with v1 xor_cryptor.")
+                    .required(false)
                     .action(ArgAction::SetTrue),
             )
             .arg(
@@ -149,148 +148,185 @@ impl CliArgs {
             )
     }
 
+    /// Process all the directories and files
+    /// mentioned in the CLI arguments.
+    ///
+    /// Additionally, recurrsively scan the directory if
+    /// the `-r` flag exists.
     fn list_files(
         paths: &Vec<String>,
-        path_list: &mut HashMap<path::PathBuf, u8>,
+        path_list: &mut HashSet<path::PathBuf>,
         recursive: bool,
         encrypt: bool,
     ) {
-        for path in paths {
+        for path in paths.into_iter() {
             let path = path::PathBuf::from(path);
-            let path_meta = fs::metadata(path.clone());
-            if path_meta.is_err() {
-                println!("Unable to read metadata: {:?}", path);
+            let path_meta = match fs::metadata(path.clone()) {
+                Ok(m) => m,
+                Err(err) => {
+                    println!("Unable to read metadata: {:?} - {:?}", path, err);
+                    continue;
+                }
+            };
+
+            if path_meta.is_file() {
+                // skip log file
+                if path.file_name().unwrap_or_default() == Logger::LOGGER_FILE {
+                    continue;
+                }
+                path_list.insert(path.absolutize().unwrap().to_path_buf());
                 continue;
             }
 
-            let path_meta = path_meta.unwrap();
-            if path_meta.is_file() {
-                if path.file_name().unwrap() == Logger::LOGGER_FILE {
-                    continue;
-                }
-                path_list.insert(path.absolutize().unwrap().to_path_buf(), 0u8);
-                continue;
-            }
             if path_meta.is_dir() {
                 if recursive {
                     CliArgs::recursive_itr_dirs(path, path_list, encrypt);
-                } else {
-                    let list = fs::read_dir(path.clone());
-                    if list.is_err() {
-                        println!("Error reading dir: {:?}", path);
+                    continue;
+                }
+
+                // scan directory at depth=1
+                let list = match fs::read_dir(path.clone()) {
+                    Ok(l) => l,
+                    Err(err) => {
+                        println!("Error reading dir: {:?} - {:?}", path, err);
                         continue;
                     }
-                    let list = list.unwrap();
-                    for entry in list {
-                        if entry.is_err() {
-                            println!("Error: Unable to read file");
+                };
+
+                for entry in list {
+                    let entry = match entry {
+                        Ok(e) => e,
+                        Err(err) => {
+                            println!("Error: Unable to read dir - {:?}", err);
+                            continue;
+                        }
+                    };
+
+                    let entry_path = entry.path();
+                    let entry_meta = match fs::metadata(entry_path.clone()) {
+                        Ok(m) => m,
+                        Err(err) => {
+                            println!("Unable to read file metadata: {:?} - {:?}", entry_path, err);
+                            continue;
+                        }
+                    };
+
+                    // skip if directory as `-r` not present
+                    if entry_meta.is_dir() {
+                        continue;
+                    }
+
+                    if entry_meta.is_file() {
+                        // skip log file
+                        if entry_path.file_name().unwrap_or_default() == Logger::LOGGER_FILE {
                             continue;
                         }
 
-                        let entry = entry.unwrap().path().clone();
-                        let entry_meta = fs::metadata(entry.clone());
-                        if entry_meta.is_err() {
-                            println!("Unable to read file metadata: {:?}", entry);
-                            continue;
-                        }
-
-                        let entry_meta = entry_meta.unwrap();
-                        if entry_meta.is_dir() {
-                            continue;
-                        }
-                        if entry_meta.is_file() {
-                            if entry.file_name().unwrap() == Logger::LOGGER_FILE {
-                                continue;
+                        match entry_path.extension() {
+                            Some(ext) => {
+                                if encrypt && ext != FileHandler::FILE_EXTENSION {
+                                    path_list
+                                        .insert(entry_path.absolutize().unwrap().to_path_buf());
+                                    continue;
+                                }
+                                if !encrypt && ext == FileHandler::FILE_EXTENSION {
+                                    path_list
+                                        .insert(entry_path.absolutize().unwrap().to_path_buf());
+                                }
                             }
-                            let extension = entry.extension();
-                            if extension == None {
+                            None => {
                                 if encrypt {
                                     path_list
-                                        .insert(entry.absolutize().unwrap().to_path_buf(), 0u8);
+                                        .insert(entry_path.absolutize().unwrap().to_path_buf());
                                 }
                                 continue;
                             }
-
-                            let extension = extension.unwrap();
-                            if encrypt && extension != FileHandler::FILE_EXTENSION {
-                                path_list.insert(entry.absolutize().unwrap().to_path_buf(), 0u8);
-                                continue;
-                            }
-                            if !encrypt && extension == FileHandler::FILE_EXTENSION {
-                                path_list.insert(entry.absolutize().unwrap().to_path_buf(), 0u8);
-                            }
-                        }
+                        };
                     }
                 }
             }
         }
     }
 
+    /// Recursively scan the directories
+    ///
+    /// Uses BFS
     fn recursive_itr_dirs(
         root_path: path::PathBuf,
-        list: &mut HashMap<path::PathBuf, u8>,
+        list: &mut HashSet<path::PathBuf>,
         to_encrypt: bool,
     ) {
         let mut q = VecDeque::<path::PathBuf>::new();
         q.push_back(root_path);
-        while !q.is_empty() {
-            let path = q.front().unwrap().clone();
-            q.pop_front();
 
-            let paths = fs::read_dir(path.clone());
-            if paths.is_err() {
-                println!("Error: Unable to read dir: {:?}", path);
-                continue;
-            }
+        while let Some(path) = q.pop_front() {
+            let paths = match fs::read_dir(path.clone()) {
+                Ok(p) => p,
+                Err(err) => {
+                    println!("Error: Unable to read dir: {:?} - {:?}", path, err);
+                    continue;
+                }
+            };
 
-            let paths = paths.unwrap();
             for entry in paths {
-                if entry.is_err() {
-                    continue;
-                }
+                let entry = match entry {
+                    Ok(e) => e,
+                    Err(err) => {
+                        println!("Failed entry: {:?}", err);
+                        continue;
+                    }
+                };
 
-                let entry = entry.unwrap().path();
-                let metadata = fs::metadata(entry.clone());
-                if metadata.is_err() {
-                    println!("Unable read file: {:?}", entry);
-                    continue;
-                }
+                let entry_path = entry.path();
+                let metadata = match fs::metadata(entry_path.clone()) {
+                    Ok(m) => m,
+                    Err(err) => {
+                        println!("Unable read file: {:?} - {:?}", entry_path, err);
+                        continue;
+                    }
+                };
 
-                let metadata = metadata.unwrap();
                 if metadata.is_dir() {
-                    q.push_back(entry.clone());
+                    q.push_back(entry_path.clone());
                 }
                 if metadata.is_file() {
-                    if entry.file_name().unwrap() == Logger::LOGGER_FILE {
-                        continue;
-                    }
-                    let extension = entry.extension();
-                    if extension == None {
-                        if to_encrypt {
-                            list.insert(entry.absolutize().unwrap().to_path_buf(), 0u8);
-                        }
+                    // skip log file
+                    if entry_path.file_name().unwrap_or_default() == Logger::LOGGER_FILE {
                         continue;
                     }
 
-                    let extension = extension.unwrap();
-                    if to_encrypt && extension != FileHandler::FILE_EXTENSION {
-                        list.insert(entry.absolutize().unwrap().to_path_buf(), 0u8);
-                        continue;
-                    }
-                    if !to_encrypt && extension == FileHandler::FILE_EXTENSION {
-                        list.insert(entry.absolutize().unwrap().to_path_buf(), 0u8);
+                    match entry_path.extension() {
+                        Some(ext) => {
+                            if to_encrypt && ext != FileHandler::FILE_EXTENSION {
+                                list.insert(entry_path.absolutize().unwrap().to_path_buf());
+                                continue;
+                            }
+                            if !to_encrypt && ext == FileHandler::FILE_EXTENSION {
+                                list.insert(entry_path.absolutize().unwrap().to_path_buf());
+                            }
+                        }
+                        None => {
+                            if to_encrypt {
+                                list.insert(entry_path.absolutize().unwrap().to_path_buf());
+                            }
+                            continue;
+                        }
                     }
                 }
             }
         }
     }
 
-    pub fn is_preserve(&self) -> bool {
+    pub fn should_preserve(&self) -> bool {
         self.preserve
     }
 
     pub fn to_encrypt(&self) -> bool {
         self.to_encrypt
+    }
+
+    pub fn is_legacy(&self) -> bool {
+        self.legacy
     }
 
     pub fn get_path_count(&self) -> usize {

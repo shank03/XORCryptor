@@ -1,6 +1,6 @@
 [package]
 name = "xrc_cli"
-version = "1.2.2"
+version = "2.0.0"
 edition = "2021"
 authors = ["Shashank Verma <shank03>"]
 license = "MIT"
@@ -18,8 +18,9 @@ categories = [
 
 [dependencies]
 clap = "4.0.27"
-xor_cryptor = "1.2.2"
+xor_cryptor = "=2.0.4"
 path-absolutize = "3.0.14"
-hmac = "0.12.1"
-sha2 = "0.10.6"
+hmac = "=0.12.1"
+sha2 = "=0.10.8"
 indicatif = "0.17.2"
+rpassword = "7.3.1"
