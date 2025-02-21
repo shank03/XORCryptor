@@ -33,10 +33,12 @@ Arguments:
 Options:
   -e, --encrypt  Encrypt
   -d, --decrypt  Decrypt
+  -l, --legacy   Legacy for older v1 (uses v2 as default)
+  -p             If set, does not delete the source file
   -r             Recursively iterate folders if present
   -j <jobs>      No. of jobs
-  -h, --help     Print help information
-  -V, --version  Print version information
+  -h, --help     Print help (see more with '--help')
+  -V, --version  Print version
 ```
 
 <details>

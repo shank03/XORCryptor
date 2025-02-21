@@ -1,6 +1,6 @@
 [package]
 name = "xrc_cli"
-version = "1.2.2"
+version = "2.0.0"
 edition = "2021"
 authors = ["Shashank Verma <shank03>"]
 license = "MIT"
